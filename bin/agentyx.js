@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,7 +28,9 @@ if (!fs.existsSync(distEntry)) {
   }
 }
 
-import('../dist/index.js').catch((err) => {
+const distFileURL = pathToFileURL(distEntry).href;
+
+import(distFileURL).catch((err) => {
   console.error('\x1b[31m%s\x1b[0m', '❌ Fatal error starting Agentyx CLI:', err);
   process.exit(1);
 });
