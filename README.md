@@ -6,12 +6,12 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js Version](https://img.shields.io/badge/Node.js-v18%2B-brightgreen.svg)](https://nodejs.org)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Termux-blueviolet.svg)](#-cross-platform-installation)
-[![MCP Count](https://img.shields.io/badge/MCP%20Tools-17%20Active-ff69b4.svg)](#-gacor-mcp--skills-ecosystem)
+[![MCP Count](https://img.shields.io/badge/MCP%20Tools-18%20Active-ff69b4.svg)](#-gacor-mcp--skills-ecosystem)
 [![Architecture](https://img.shields.io/badge/Architecture-Swarm%20Agentic-orange.svg)](#-swarm-agent-roles)
 
 ---
 
-**Agentyx** adalah platform CLI Agentic AI otonom tingkat lanjut yang dirancang untuk pengembang perangkat lunak modern (*vibe coding*). Menggabungkan **Orkestrasi Multi-Agent Swarm**, **9router Multi-Model Router**, **SQLite Second Brain & Experience Bank**, serta **17 MCP Tools & Design Intelligence Skills** untuk memberikan pengalaman pengkodean yang presisi, indah, dan bebas dari halusinasi.
+**Agentyx** adalah platform CLI Agentic AI otonom tingkat lanjut yang dirancang untuk pengembang perangkat lunak modern (*vibe coding*). Menggabungkan **Orkestrasi Multi-Agent Swarm**, **9router Multi-Model Router**, **SQLite Second Brain & Experience Bank**, serta **18 MCP Tools & Design Intelligence Skills** untuk memberikan pengalaman pengkodean yang presisi, indah, dan bebas dari halusinasi.
 
 </div>
 
@@ -21,7 +21,7 @@
 
 - 🤖 **Swarm Multi-Agent Engine**: Pilihan persona agen spesialis (`.prometheus`, `.sisyphus`, `.heptaseus`, `.hermes`, `Full-Team Coding`) dengan batas peran (*role boundary*) yang ketat.
 - 🧠 **SQLite Second Brain & Experience Bank (`~/.agentyx/memory.db`)**: Mengingat pola error, trajektori eksekusi, dan solusi teknis terverifikasi agar agen tidak mengulang kesalahan di masa depan.
-- 🔌 **17 Gacor MCP Tools & Skills**: Terintegrasi langsung dengan Context7 (Dokumentasi Live), JamesANZ Memory (`JamesANZ/memory-mcp`), Token Optimizer (`ooples/token-optimizer-mcp`), Shadcn UI Registry, Playwright, UI/UX Pro Max, AST-grep, DB Inspector, Docker, dan Sequential Thinking.
+- 🔌 **18 Gacor MCP Tools & Skills**: Terintegrasi langsung dengan Context7 (Dokumentasi Live), Google Sheets (`freema/mcp-gsheets`), JamesANZ Memory, Token Optimizer, Shadcn UI Registry, Playwright, UI/UX Pro Max, AST-grep, DB Inspector, Docker, dan Sequential Thinking.
 - 🔀 **9router Dynamic Model Switcher**: Beralih antar model AI (Claude 3.7 Sonnet, GPT-4o, DeepSeek-R1, Qwen 2.5) secara instan.
 - ⌨️ **Single-Instance TUI REPL**: Antarmuka CLI interaktif yang stabil, bebas dari kebocoran event loop atau input ganda (*double input*).
 - 🧹 **AI Slop Cleanser**: Pembersihan komentar redundan dan file sampah hasil generasi AI dengan 1-klik (`/slop`).
@@ -59,10 +59,11 @@ graph TD
 
 ## 🔌 Gacor MCP & Skills Ecosystem
 
-Agentyx dilengkapi dengan **17 MCP Tools & Design Intelligence Skills** bawaan:
+Agentyx dilengkapi dengan **18 MCP Tools & Design Intelligence Skills** bawaan:
 
 | MCP Tool / Skill | Type | Status | Description |
 | :--- | :---: | :---: | :--- |
+| **`mcp-gsheets`** | MCP Server | `ONLINE` | Integrasi Google Sheets API untuk membaca/menulis cell, append baris data, & manajemen tab (`freema/mcp-gsheets`). |
 | **`jamesanz-memory`** | MCP Server | `ONLINE` | Knowledge graph memori terstruktur lintas sesi, relasi entitas, & preferensi user (`JamesANZ/memory-mcp`). |
 | **`token-optimizer`** | MCP Server | `ONLINE` | Penghemat token konteks, pembaruan file berbasis diff, & knowledge graph (`ooples/token-optimizer-mcp`). |
 | **`shadcn-ui`** | MCP Server | `ONLINE` | Registry komponen shadcn/ui v4, template block UI, & React/Next.js demo extractor (`Jpisnice/shadcn-ui-mcp-server`). |
