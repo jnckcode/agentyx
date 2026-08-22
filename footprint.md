@@ -712,3 +712,10 @@
 ### Technical Implementation
 - `[CREATED]` `src/skills/ninerouter-skills.ts`: Built `NineRouterSkillsManager` implementing specs for `9router`, `9router-chat`, `9router-embeddings`, `9router-web-search`, and `9router-web-fetch` to prevent model routing disorganization.
 - `[MODIFIED]` `src/router/ninerouter-client.ts`: Extended `NineRouterClient` with endpoint discovery (`listModelsByKind`), web search (`performWebSearch`), web fetch (`performWebFetch`), and embeddings (`generateEmbeddings`).
+
+## Master Prompts Privacy & Git Untrack Security Action - 2026-08-22
+
+### Technical Implementation
+- `[MODIFIED]` `.gitignore`: Added explicit exclusion rules for internal master prompt files (`prompt.md`, `promt.md`, `agent.md`, `*promt*.md`, `*prompt*.md`, `workflow.md`).
+- `[EXECUTED]` `git rm --cached`: Untracked all master prompt files from remote GitHub index while safely keeping them intact on the local filesystem.
+- `[VERIFIED]`: Confirmed `jnckcode/agentyx` on GitHub no longer contains master prompt files.
