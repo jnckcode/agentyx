@@ -31,7 +31,8 @@ export class McpStatusManager {
     { name: 'db-inspector', type: 'MCP Server', status: 'ACTIVE', description: 'Live database schema inspector & SQL runner for SQLite, PostgreSQL, MySQL' },
     { name: 'docker', type: 'MCP Server', status: 'ACTIVE', description: 'Container orchestrator, multi-service compose & log streaming engine' },
     { name: 'reasoning', type: 'MCP Server', status: 'ONLINE', description: 'Sequential multi-branch step-by-step reasoning engine (@modelcontextprotocol/server-sequential-thinking)' },
-    { name: 'shadcn-ui', type: 'MCP Server', status: 'ONLINE', description: 'Shadcn UI v4 component registry, UI block templates & React/Next.js demo extractor (Jpisnice/shadcn-ui-mcp-server)' }
+    { name: 'shadcn-ui', type: 'MCP Server', status: 'ONLINE', description: 'Shadcn UI v4 component registry, UI block templates & React/Next.js demo extractor (Jpisnice/shadcn-ui-mcp-server)' },
+    { name: 'token-optimizer', type: 'MCP Server', status: 'ONLINE', description: 'Context token saver, diff-based file updates & persistent project knowledge graph (ooples/token-optimizer-mcp)' }
   ];
 
   public getRegisteredMcps(): McpInfo[] {
@@ -56,7 +57,7 @@ export class McpStatusManager {
       body += `${statusBadge} ${chalk.bold.yellow(mcp.name.padEnd(16))} ${typeBadge} ${chalk.white(mcp.description)}\n`;
     });
 
-    body += chalk.dim('\n✔ All 15 Gacor Vibe Coding MCP tools, Shadcn UI Registry, Playwright & Design Intelligence skills are active & verified.');
+    body += chalk.dim('\n✔ All 16 Gacor Vibe Coding MCP tools, Token Optimizer, Shadcn UI Registry & Design Intelligence skills are active & verified.');
 
     const title = '🔌 Agentyx MCPs & Swarm Tools Ecosystem Status Panel';
     const top = chalk.bold.cyan('╔═') + chalk.bold.bgCyan.black(` ${title} `) + chalk.bold.cyan('═'.repeat(Math.max(0, 72 - title.length - 5)) + '╗\n');
