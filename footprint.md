@@ -706,3 +706,9 @@
 ### Technical Implementation
 - `[CREATED]` `README.md`: Created comprehensive, visual, and modern documentation featuring Shields.io badges, Mermaid architecture diagram, Swarm Agent role matrix, 14 MCP ecosystem table, Termux Android installation guide, CLI option reference, and Interactive Slash Commands menu.
 - `[EXECUTED]`: Committed and pushed `README.md` to [`jnckcode/agentyx`](https://github.com/jnckcode/agentyx).
+
+## Official 9Router 5-Capability Skills Integration - 2026-08-22
+
+### Technical Implementation
+- `[CREATED]` `src/skills/ninerouter-skills.ts`: Built `NineRouterSkillsManager` implementing specs for `9router`, `9router-chat`, `9router-embeddings`, `9router-web-search`, and `9router-web-fetch` to prevent model routing disorganization.
+- `[MODIFIED]` `src/router/ninerouter-client.ts`: Extended `NineRouterClient` with endpoint discovery (`listModelsByKind`), web search (`performWebSearch`), web fetch (`performWebFetch`), and embeddings (`generateEmbeddings`).
