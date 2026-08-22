@@ -59,3 +59,11 @@ logs/
 *.pid
 *.seed
 *.pid.lock
+
+# Internal Master Prompts & Architecture Specs
+prompt.md
+promt.md
+agent.md
+*promt*.md
+*prompt*.md
+workflow.md
