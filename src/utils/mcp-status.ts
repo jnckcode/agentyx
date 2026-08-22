@@ -34,7 +34,8 @@ export class McpStatusManager {
     { name: 'shadcn-ui', type: 'MCP Server', status: 'ONLINE', description: 'Shadcn UI v4 component registry, UI block templates & React/Next.js demo extractor (Jpisnice/shadcn-ui-mcp-server)' },
     { name: 'token-optimizer', type: 'MCP Server', status: 'ONLINE', description: 'Context token saver, diff-based file updates & persistent project knowledge graph (ooples/token-optimizer-mcp)' },
     { name: 'jamesanz-memory', type: 'MCP Server', status: 'ONLINE', description: 'Cross-session persistent knowledge graph, entity relations & habit memory (JamesANZ/memory-mcp)' },
-    { name: 'mcp-gsheets', type: 'MCP Server', status: 'ONLINE', description: 'Google Sheets API bridge for spreadsheet reading, writing, row appending & tab management (freema/mcp-gsheets)' }
+    { name: 'mcp-gsheets', type: 'MCP Server', status: 'ONLINE', description: 'Google Sheets API bridge for spreadsheet reading, writing, row appending & tab management (freema/mcp-gsheets)' },
+    { name: 'webcrawl', type: 'MCP Server', status: 'ONLINE', description: 'Offline web archive RAG query engine for WARC, wget, ArchiveBox & site mirrors (pragmar/mcp-server-webcrawl)' }
   ];
 
   public getRegisteredMcps(): McpInfo[] {
@@ -59,7 +60,7 @@ export class McpStatusManager {
       body += `${statusBadge} ${chalk.bold.yellow(mcp.name.padEnd(16))} ${typeBadge} ${chalk.white(mcp.description)}\n`;
     });
 
-    body += chalk.dim('\n✔ All 18 Gacor Vibe Coding MCP tools, Google Sheets API, Knowledge Graph, Token Optimizer & Design Intelligence skills are active & verified.');
+    body += chalk.dim('\n✔ All 19 Gacor Vibe Coding MCP tools, Offline Web Archive RAG, Google Sheets API & Knowledge Graph skills are active & verified.');
 
     const title = '🔌 Agentyx MCPs & Swarm Tools Ecosystem Status Panel';
     const top = chalk.bold.cyan('╔═') + chalk.bold.bgCyan.black(` ${title} `) + chalk.bold.cyan('═'.repeat(Math.max(0, 72 - title.length - 5)) + '╗\n');
