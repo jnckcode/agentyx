@@ -177,4 +177,4 @@ agentyx --help
 
 ## 📄 License & Credits
 
-Distributed under the **MIT License**. Created & Maintained with ❤️ by **[AntiGravity AI](https://github.com/jnckcode)**.
+Distributed under the **MIT License**. Created & Designed with ❤️ by **[jnckcode](https://github.com/jnckcode)**.
