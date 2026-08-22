@@ -1,0 +1,44 @@
+{
+  "name": "agentyx",
+  "version": "3.0.0",
+  "description": "Platform Agentic AI CLI Global with 9router integration, SQLite Second Brain, and Reasoning Mitigation Engine",
+  "type": "module",
+  "bin": {
+    "agentyx": "./bin/agentyx.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit",
+    "link-global": "npm link",
+    "unlink-global": "npm unlink agentyx"
+  },
+  "keywords": [
+    "cli",
+    "agentic-ai",
+    "agentyx",
+    "9router",
+    "sqlite",
+    "second-brain"
+  ],
+  "author": "AntiGravity AI",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^11.8.0",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "dotenv": "^16.4.7",
+    "glob": "^11.0.1",
+    "inquirer": "^12.4.2",
+    "node-fetch": "^3.3.2",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}
