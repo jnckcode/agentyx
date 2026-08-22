@@ -7,23 +7,36 @@
     "agentyx": "./bin/agentyx.js"
   },
   "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "lint": "tsc --noEmit",
     "link-global": "npm link",
-    "unlink-global": "npm unlink agentyx"
+    "unlink-global": "npm unlink agentyx",
+    "prepublishOnly": "npm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jnckcode/agentyx.git"
+  },
+  "homepage": "https://github.com/jnckcode/agentyx#readme",
   "keywords": [
     "cli",
     "agentic-ai",
     "agentyx",
     "9router",
     "sqlite",
-    "second-brain"
+    "second-brain",
+    "mcp"
   ],
-  "author": "AntiGravity AI",
+  "author": "jnckcode",
   "license": "MIT",
   "dependencies": {
     "better-sqlite3": "^11.8.0",
