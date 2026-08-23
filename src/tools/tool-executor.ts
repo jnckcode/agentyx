@@ -107,9 +107,10 @@ export class ToolExecutor {
     }
 
     return new Promise((resolve) => {
-      // Shell options: on Termux/Linux use /bin/sh or bash, on Windows use default shell
+      // Shell options: handle Termux $PREFIX path (/data/data/com.termux/files/usr/bin/sh or bash), Linux, and Windows
       const isWindows = process.platform === 'win32';
-      const shellOption = isWindows ? undefined : (process.env.SHELL || '/bin/sh');
+      const termuxShell = process.env.PREFIX ? `${process.env.PREFIX}/bin/bash` : undefined;
+      const shellOption = isWindows ? undefined : (process.env.SHELL || termuxShell || '/bin/sh');
 
       exec(
         command,
@@ -117,7 +118,8 @@ export class ToolExecutor {
           cwd: path.resolve(cwd),
           timeout: 30000, // 30 second safety timeout
           maxBuffer: 1024 * 1024 * 5, // 5MB buffer
-          shell: shellOption
+          shell: shellOption,
+          env: process.env
         },
         (error, stdout, stderr) => {
           const combinedOutput = [

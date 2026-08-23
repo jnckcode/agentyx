@@ -166,7 +166,7 @@ async function startInteractiveRepl(): Promise<void> {
 
     // 2. Build message context including 4 manifest files context
     const manifests = manifestManager.readAllManifests();
-    const systemInstruction = `${activeAgent.systemInstruction}\n\nProject Context:\nWorkflow: ${manifests.workflow.slice(0, 500)}\nAgent State: ${manifests.agent.slice(0, 300)}\n\nYou have native tools to run terminal commands, read/write files, search, and browse. When asked to run terminal commands or perform file operations, USE YOUR TOOLS (or output JSON \`\`\`json { "tool": "terminal", "command": "..." } \`\`\`).`;
+    const systemInstruction = `${activeAgent.systemInstruction}\n\nProject Context:\nWorkflow: ${manifests.workflow.slice(0, 500)}\nAgent State: ${manifests.agent.slice(0, 300)}\n\nIMPORTANT SYSTEM RULE: You have active native tools: \`terminal\` (executes shell commands), \`read_file\`, \`write_file\`, \`list_dir\`, \`grep_search\`, \`web_search\`, and \`web_fetch\`. Whenever the user asks you to run terminal/shell commands, read files, edit code, or check directories, DO NOT output plain text explanations or unexecuted code blocks. CALL THE RELEVANT TOOL DIRECTLY via function calls or JSON format (\`\`\`json { "tool": "terminal", "command": "..." } \`\`\`).`;
 
     const historyMessages = sessionStore.getSessionMessages(currentSessionId!);
     const apiMessages: ChatMessage[] = [
