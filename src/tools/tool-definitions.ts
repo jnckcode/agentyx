@@ -1,8 +1,8 @@
 /**
  * @file tool-definitions.ts
- * @description Tool Schema Definitions, Tokenized Intent Resolver, and Shell Codeblock Interceptor for Agentyx
- * @purpose Defines OpenAI-compatible tool schemas for 9router API and provides shell codeblock fallback interception.
- * @functions getAgentyxTools, normalizeToolName, inferToolCallFromObject, parseToolCallsFromText - Tool schemas & universal tool call extractor.
+ * @description Tool Schema Definitions, Tokenized Intent Resolver, Shell Interceptor & Heredoc Parser for Agentyx
+ * @purpose Defines OpenAI-compatible tool schemas for 9router API and provides shell codeblock & heredoc script fallback interception.
+ * @functions getAgentyxTools, normalizeToolName, inferToolCallFromObject, parseHeredocCommands, parseToolCallsFromText - Tool schemas & universal tool call extractor.
  */
 
 import { jsonSanitizer } from '../sanitizer/json-sanitizer.js';
@@ -260,10 +260,57 @@ export function inferToolCallFromObject(obj: Record<string, unknown>): ParsedToo
 }
 
 /**
+ * Parses heredoc scripts like `cat << 'EOF' > src/App.tsx ... EOF` into `write_file` tool calls,
+ * and extracts remaining non-heredoc shell commands into `terminal` tool calls.
+ */
+export function parseHeredocCommands(text: string): ParsedToolCall[] {
+  const toolCalls: ParsedToolCall[] = [];
+  if (!text) return toolCalls;
+
+  const heredocRegex = /cat\s*<<\s*['"]?(\w+)['"]?\s*>\s*([^\s\n]+)\s*\n([\s\S]*?)\n\1/gi;
+  let match;
+  let cleanedText = text;
+
+  while ((match = heredocRegex.exec(text)) !== null) {
+    const filePath = match[2].trim();
+    const content = match[3];
+
+    toolCalls.push({
+      id: `call_${Date.now()}_${toolCalls.length}`,
+      name: 'write_file',
+      arguments: {
+        path: filePath,
+        content: content
+      }
+    });
+
+    cleanedText = cleanedText.replace(match[0], '');
+  }
+
+  // Extract remaining shell lines after removing comments and empty lines
+  const remainingLines = cleanedText
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('#') && !line.startsWith('//'))
+    .join(' && ');
+
+  if (remainingLines) {
+    toolCalls.push({
+      id: `call_${Date.now()}_${toolCalls.length}`,
+      name: 'terminal',
+      arguments: { command: remainingLines }
+    });
+  }
+
+  return toolCalls;
+}
+
+/**
  * Extracts all valid tool calls from raw LLM text responses:
  * 1. Markdown JSON codeblocks
  * 2. Multiple raw JSON objects
- * 3. Fallback Interceptor for tagged shell/bash codeblocks (```bash ... ```)
+ * 3. Heredoc Script Parser (`cat << 'EOF' > file ... EOF`) -> converted to `write_file` & `terminal`
+ * 4. Fallback Interceptor for tagged shell/bash codeblocks (```bash ... ```)
  */
 export function parseToolCallsFromText(content: string): ParsedToolCall[] {
   const toolCalls: ParsedToolCall[] = [];
@@ -315,14 +362,29 @@ export function parseToolCallsFromText(content: string): ParsedToolCall[] {
     }
   }
 
-  // 3. Fallback Interceptor: Shell/Bash Codeblocks (```bash ... ```, ```sh ... ```, ```cmd ... ```)
-  // If no structured JSON tool call was extracted, catch tagged shell blocks and convert to terminal tool call automatically!
+  // 3. Fallback Interceptor: Check for Heredoc Script (`cat << 'EOF' > path ... EOF`) in text or codeblocks
+  if (toolCalls.length === 0 && content.includes('cat <<')) {
+    const heredocCalls = parseHeredocCommands(content);
+    if (heredocCalls.length > 0) {
+      toolCalls.push(...heredocCalls);
+    }
+  }
+
+  // 4. Fallback Interceptor: Tagged Shell/Bash Codeblocks (```bash ... ```, ```sh ... ```, ```cmd ... ```)
   if (toolCalls.length === 0) {
     const shellBlockRegex = /```(?:bash|sh|shell|powershell|cmd|zsh)\s*([\s\S]*?)\s*```/gi;
     let shellMatch;
     while ((shellMatch = shellBlockRegex.exec(content)) !== null) {
       const rawCmd = shellMatch[1].trim();
       if (rawCmd && !rawCmd.startsWith('{')) {
+        // If the shell block itself contains cat << 'EOF', use parseHeredocCommands
+        if (rawCmd.includes('cat <<')) {
+          const heredocCalls = parseHeredocCommands(rawCmd);
+          if (heredocCalls.length > 0) {
+            toolCalls.push(...heredocCalls);
+            continue;
+          }
+        }
         toolCalls.push({
           id: `call_${Date.now()}_${toolCalls.length}`,
           name: 'terminal',
