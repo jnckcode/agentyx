@@ -12,6 +12,9 @@ import { thinkingIsolator, IsolatedResult } from '../sanitizer/thinking-isolator
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  tool_call_id?: string;
+  name?: string;
+  tool_calls?: unknown[];
 }
 
 export interface ModelInfo {
@@ -105,30 +108,37 @@ export class NineRouterClient {
   }
 
   /**
-   * Sends chat completion request to 9router with thinking isolation
+   * Sends chat completion request to 9router with thinking isolation & tool calls support
    */
   public async sendChatCompletion(
     messages: ChatMessage[],
     modelOverride?: string,
     onThoughtChunk?: (chunk: string) => void,
-    onContentChunk?: (chunk: string) => void
-  ): Promise<{ content: string; thought: string }> {
+    onContentChunk?: (chunk: string) => void,
+    tools?: unknown[]
+  ): Promise<{ content: string; thought: string; tool_calls?: any[] }> {
     const cfg = this.getConfig();
     const model = modelOverride || cfg.DEFAULT_COMBO;
     const url = `${cfg.NINEROUTER_BASE_URL.replace(/\/$/, '')}/chat/completions`;
 
     try {
+      const reqBody: Record<string, unknown> = {
+        model,
+        messages,
+        stream: false
+      };
+
+      if (tools && tools.length > 0) {
+        reqBody.tools = tools;
+      }
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${cfg.NINEROUTER_API_KEY}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          model,
-          messages,
-          stream: false
-        })
+        body: JSON.stringify(reqBody)
       });
 
       if (!response.ok) {
@@ -136,8 +146,18 @@ export class NineRouterClient {
         throw new Error(`9router API request failed (${response.status}): ${errorText}`);
       }
 
-      const resJson = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-      const rawContent = resJson.choices?.[0]?.message?.content || '';
+      const resJson = (await response.json()) as {
+        choices?: Array<{
+          message?: {
+            content?: string;
+            tool_calls?: any[];
+          }
+        }>
+      };
+
+      const msgObj = resJson.choices?.[0]?.message;
+      const rawContent = msgObj?.content || '';
+      const apiToolCalls = msgObj?.tool_calls;
 
       // Run through ThinkingIsolator
       const isolated: IsolatedResult = thinkingIsolator.isolateThinking(rawContent);
@@ -151,14 +171,15 @@ export class NineRouterClient {
 
       return {
         content: isolated.cleanContent,
-        thought: isolated.thought
+        thought: isolated.thought,
+        tool_calls: apiToolCalls
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      const fallbackMsg = `[9router Offline / Connection Fallback]: ${msg}\nAgentyx response ready.`;
+      const fallbackMsg = `[9router Connection Warning]: ${msg}`;
       return {
         content: fallbackMsg,
-        thought: '9router offline fallback triggered.'
+        thought: '9router request error.'
       };
     }
   }

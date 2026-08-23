@@ -16,11 +16,14 @@ import { slashHandler } from './commands/slash-handler.js';
 import { executeInitCommand } from './commands/init.js';
 import { executeRemoveSlopCommand } from './commands/remove-slop.js';
 import { executeSessionsCommand, executeNewSessionCommand } from './commands/sessions.js';
-import { nineRouterClient } from './router/ninerouter-client.js';
+import { nineRouterClient, ChatMessage } from './router/ninerouter-client.js';
 import { agentManager } from './agents/agent-manager.js';
 import { manifestManager } from './docs/manifest-manager.js';
 import { mcpStatusManager } from './utils/mcp-status.js';
 import { tuiTheme } from './ui/tui-theme.js';
+import { toolExecutor } from './tools/tool-executor.js';
+import { getAgentyxTools, parseToolCallsFromText, ParsedToolCall } from './tools/tool-definitions.js';
+import { jsonSanitizer } from './sanitizer/json-sanitizer.js';
 
 const program = new Command();
 
@@ -163,44 +166,111 @@ async function startInteractiveRepl(): Promise<void> {
 
     // 2. Build message context including 4 manifest files context
     const manifests = manifestManager.readAllManifests();
-    const systemInstruction = `${activeAgent.systemInstruction}\n\nProject Context:\nWorkflow: ${manifests.workflow.slice(0, 500)}\nAgent State: ${manifests.agent.slice(0, 300)}`;
+    const systemInstruction = `${activeAgent.systemInstruction}\n\nProject Context:\nWorkflow: ${manifests.workflow.slice(0, 500)}\nAgent State: ${manifests.agent.slice(0, 300)}\n\nYou have native tools to run terminal commands, read/write files, search, and browse. When asked to run terminal commands or perform file operations, USE YOUR TOOLS (or output JSON \`\`\`json { "tool": "terminal", "command": "..." } \`\`\`).`;
 
     const historyMessages = sessionStore.getSessionMessages(currentSessionId!);
-    const apiMessages = [
+    const apiMessages: ChatMessage[] = [
       { role: 'system' as const, content: systemInstruction },
-      ...historyMessages.map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content }))
+      ...historyMessages.map(m => ({ role: m.role as 'user' | 'assistant' | 'system' | 'tool', content: m.content }))
     ];
 
-    const spinner = ora(chalk.bold.cyan(`Thinking as ${activeAgent.name}...`)).start();
+    const tools = getAgentyxTools();
+    let turnCount = 0;
+    const maxTurns = 5;
 
-    try {
-      const response = await nineRouterClient.sendChatCompletion(
-        apiMessages,
-        cfg.DEFAULT_COMBO,
-        (thoughtChunk) => {
-          spinner.text = chalk.dim(`Thinking: ${thoughtChunk.slice(0, 50)}...`);
+    while (turnCount < maxTurns) {
+      turnCount++;
+      const spinner = ora(chalk.bold.cyan(`Thinking as ${activeAgent.name} (Step ${turnCount})...`)).start();
+
+      try {
+        const response = await nineRouterClient.sendChatCompletion(
+          apiMessages,
+          cfg.DEFAULT_COMBO,
+          (thoughtChunk) => {
+            spinner.text = chalk.dim(`Thinking: ${thoughtChunk.slice(0, 50)}...`);
+          },
+          undefined,
+          tools
+        );
+
+        spinner.stop();
+
+        // Display Thinking in dimmed / collapsed format if present
+        if (response.thought) {
+          console.log(chalk.dim.italic(`\n💭 [Reasoning Thought]:\n${response.thought}\n`));
         }
-      );
 
-      spinner.stop();
+        // Check for tool calls (OpenAI function calling or fallback JSON text parsing)
+        let callsToExecute: ParsedToolCall[] = [];
 
-      // Display Thinking in dimmed / collapsed format if present
-      if (response.thought) {
-        console.log(chalk.dim.italic(`\n💭 [Reasoning Thought]:\n${response.thought}\n`));
+        if (response.tool_calls && response.tool_calls.length > 0) {
+          for (const tc of response.tool_calls) {
+            let argsObj: Record<string, unknown> = {};
+            if (typeof tc.function?.arguments === 'string') {
+              const parsedArgs = jsonSanitizer.sanitizeAndParse<Record<string, unknown>>(tc.function.arguments);
+              argsObj = parsedArgs.data || {};
+            } else if (typeof tc.function?.arguments === 'object') {
+              argsObj = tc.function.arguments;
+            }
+            callsToExecute.push({
+              id: tc.id || `call_${Date.now()}`,
+              name: tc.function?.name || 'terminal',
+              arguments: argsObj
+            });
+          }
+        } else {
+          callsToExecute = parseToolCallsFromText(response.content);
+        }
+
+        if (callsToExecute.length > 0) {
+          if (response.content) {
+            console.log(chalk.bold.green(`\n🤖 ${activeAgent.name}:\n${response.content}\n`));
+            apiMessages.push({ role: 'assistant', content: response.content });
+          }
+
+          for (const call of callsToExecute) {
+            console.log(chalk.bold.yellow(`\n⚡ [Tool Call: ${call.name}]`));
+            if (call.arguments.command) {
+              console.log(chalk.cyan(`$ ${call.arguments.command}`));
+            } else if (call.arguments.path) {
+              console.log(chalk.cyan(`📄 ${call.arguments.path}`));
+            } else if (call.arguments.query) {
+              console.log(chalk.cyan(`🔍 ${call.arguments.query}`));
+            }
+
+            const execSpinner = ora(chalk.bold.yellow(`Executing ${call.name}...`)).start();
+            const result = await toolExecutor.executeTool(call.name, call.arguments);
+            execSpinner.stop();
+
+            const statusIcon = result.success ? chalk.green('✔') : chalk.red('❌');
+            console.log(`${statusIcon} ${chalk.bold('Execution Output')}:\n${chalk.dim(result.output)}\n`);
+
+            const toolResultText = `[Tool Execution Result for ${call.name}]:\nStatus: ${result.success ? 'Success' : 'Error'}\nOutput:\n${result.output}`;
+            apiMessages.push({
+              role: 'user',
+              content: toolResultText
+            });
+          }
+
+          // Loop back to let the LLM see the tool output
+          continue;
+        }
+
+        // Final answer from model without further tool calls
+        console.log(chalk.bold.green(`\n🤖 ${activeAgent.name}:\n`));
+        console.log(response.content + '\n');
+
+        // Record assistant message & thought in SQLite
+        sessionStore.addMessage(currentSessionId!, 'assistant', response.content, response.thought);
+        manifestManager.logFootprint('AI_RESPONSE', `Response generated by ${activeAgent.id}`);
+        break;
+
+      } catch (err: unknown) {
+        spinner.fail(chalk.red('Error generating response'));
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log(chalk.red(`❌ ${msg}\n`));
+        break;
       }
-
-      console.log(chalk.bold.green(`\n🤖 ${activeAgent.name}:\n`));
-      console.log(response.content + '\n');
-
-      // Record assistant message & thought in SQLite
-      sessionStore.addMessage(currentSessionId!, 'assistant', response.content, response.thought);
-
-      // Real-time manifest update
-      manifestManager.logFootprint('AI_RESPONSE', `Response generated by ${activeAgent.id}`);
-    } catch (err: unknown) {
-      spinner.fail(chalk.red('Error generating response'));
-      const msg = err instanceof Error ? err.message : String(err);
-      console.log(chalk.red(`❌ ${msg}\n`));
     }
 
     process.stdin.resume();
