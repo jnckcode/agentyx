@@ -121,10 +121,14 @@ async function startInteractiveRepl(): Promise<void> {
   let pasteTimer: NodeJS.Timeout | null = null;
 
   const processInput = async (input: string, lineCount: number = 1) => {
+    rl.pause(); // Pause readline interface immediately during processing to prevent duplicate prompt rendering
+
     // Strip any orphaned ANSI escape control codes (like \x1b[D, \x1b[C from raw arrow keys)
     const sanitizedInput = (input || '').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
 
     if (!sanitizedInput) {
+      rl.resume();
+      rl.setPrompt(tuiTheme.getRichPromptBadge());
       rl.prompt();
       return;
     }
