@@ -182,7 +182,7 @@ async function startInteractiveRepl(): Promise<void> {
 
     // 2. Build message context including 4 manifest files context
     const manifests = manifestManager.readAllManifests();
-    const systemInstruction = `${activeAgent.systemInstruction}\n\nProject Context:\nWorkflow: ${manifests.workflow.slice(0, 500)}\nAgent State: ${manifests.agent.slice(0, 300)}\n\nIMPORTANT SYSTEM RULE: You have active native tools: \`terminal\` (executes shell commands), \`read_file\`, \`write_file\`, \`list_dir\`, \`grep_search\`, \`web_search\`, and \`web_fetch\`. Whenever the user asks you to run terminal/shell commands, read files, edit code, or analyze pasted error logs, DO NOT output plain text explanations or unexecuted code blocks. CALL THE RELEVANT TOOL DIRECTLY via function calls or JSON format (\`\`\`json { "tool": "terminal", "command": "..." } \`\`\`).`;
+    const systemInstruction = `${activeAgent.systemInstruction}\n\nProject Context:\nWorkflow: ${manifests.workflow.slice(0, 500)}\nAgent State: ${manifests.agent.slice(0, 300)}\n\nIMPORTANT SYSTEM RULE: You have active native tools: \`terminal\` (executes shell commands), \`read_file\`, \`write_file\`, \`list_dir\`, \`grep_search\`, \`web_search\`, and \`web_fetch\`. Whenever the user asks you to run terminal/shell commands, read files, edit code, or analyze pasted error logs, DO NOT output plain text explanations or unexecuted code blocks. CALL THE RELEVANT TOOL DIRECTLY via function calls or JSON format (\`\`\`json { "tool": "terminal", "command": "..." } \`\`\`).\n\nAUTONOMOUS ERROR LOG DIRECTIVE: If a terminal command or build fails or its output references an error log file (e.g. 'See log file at...', '.log', '.txt', 'npm-debug.log'), YOU MUST IMMEDIATELY CALL \`read_file\` ON THAT LOG FILE in the next turn to inspect the exact error root cause. DO NOT abort or conclude your task without reading the referenced log file!`;
 
     const historyMessages = sessionStore.getSessionMessages(currentSessionId!);
     const apiMessages: ChatMessage[] = [
@@ -261,7 +261,13 @@ async function startInteractiveRepl(): Promise<void> {
             const statusIcon = result.success ? chalk.green('✔') : chalk.red('❌');
             console.log(`${statusIcon} ${chalk.bold('Execution Output')}:\n${chalk.dim(result.output)}\n`);
 
-            const toolResultText = `[Tool Execution Result for ${call.name}]:\nStatus: ${result.success ? 'Success' : 'Error'}\nOutput:\n${result.output}`;
+            let toolResultText = `[Tool Execution Result for ${call.name}]:\nStatus: ${result.success ? 'Success' : 'Error'}\nOutput:\n${result.output}`;
+
+            // If execution failed or output references a log file, append autonomous directive to guide LLM
+            if (!result.success || /(?:log|error|written to|see|file)\s+[:=]?\s*([^\s\n]+\.(?:log|txt|out|err))/i.test(result.output)) {
+              toolResultText += `\n\n[SYSTEM DIRECTIVE]: An error or log file reference was detected. If the output mentions a log file path, call \`read_file\` on that path now to inspect the root cause before finalizing your response.`;
+            }
+
             apiMessages.push({
               role: 'user',
               content: toolResultText
