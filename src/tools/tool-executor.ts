@@ -155,26 +155,93 @@ export class ToolExecutor {
       return { toolName: 'terminal', success: false, output: 'Error: Empty terminal command provided.' };
     }
 
-    // Intercept `cd <dir>` commands to persist working directory across turns
-    if (trimmedCmd.startsWith('cd ') || trimmedCmd === 'cd') {
-      const targetArg = trimmedCmd.slice(2).trim().replace(/^['"]|['"]$/g, '');
+    // Intercept `cd` commands to persist working directory across turns (handling chained commands like "cd dir && ls -la")
+    if (/^cd(\s+|$)/i.test(trimmedCmd)) {
+      const chainedParts = trimmedCmd.split(/\s*(&&|;)\s*/);
+      const firstSegment = chainedParts[0].trim();
+      const targetArg = firstSegment.slice(2).trim().replace(/^['"]|['"]$/g, '');
       const targetDir = this.expandPath(targetArg || '~');
 
+      let chdirSuccess = false;
       if (fs.existsSync(targetDir) && fs.statSync(targetDir).isDirectory()) {
         try {
           process.chdir(targetDir);
+          chdirSuccess = true;
+        } catch {
+          chdirSuccess = false;
+        }
+      }
+
+      // If it was ONLY "cd targetDir" (without chained commands)
+      if (chainedParts.length === 1) {
+        if (chdirSuccess) {
           return {
             toolName: 'terminal',
             success: true,
             output: `✔ Changed working directory to: ${process.cwd()}`
           };
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          return { toolName: 'terminal', success: false, output: `Failed to change directory: ${msg}` };
+        } else {
+          return {
+            toolName: 'terminal',
+            success: false,
+            output: `Directory not found: ${targetDir}`
+          };
         }
-      } else {
-        return { toolName: 'terminal', success: false, output: `Directory not found: ${targetDir}` };
       }
+
+      // If it was a compound command like "cd dir && ls -la && npm run build"
+      // Remove the first "cd dir" part and execute the rest in the new working directory
+      const remainingCmd = chainedParts.slice(1).join(' ').replace(/^(&&|;)\s*/, '').trim();
+
+      if (!remainingCmd) {
+        return {
+          toolName: 'terminal',
+          success: chdirSuccess,
+          output: chdirSuccess ? `✔ Changed working directory to: ${process.cwd()}` : `Directory not found: ${targetDir}`
+        };
+      }
+
+      // Execute the remaining commands in the updated cwd
+      return new Promise((resolve) => {
+        const shellExecutable = this.resolveShell();
+        const workingDir = chdirSuccess ? process.cwd() : this.expandPath(cwd);
+
+        exec(
+          remainingCmd,
+          {
+            cwd: workingDir,
+            timeout: 45000,
+            maxBuffer: 1024 * 1024 * 10,
+            shell: shellExecutable,
+            env: {
+              ...process.env,
+              PAGER: 'cat'
+            }
+          },
+          (error, stdout, stderr) => {
+            const combinedOutput = [
+              stdout ? stdout.trim() : '',
+              stderr ? `[STDERR]:\n${stderr.trim()}` : ''
+            ].filter(Boolean).join('\n\n');
+
+            if (error) {
+              resolve({
+                toolName: 'terminal',
+                success: false,
+                output: combinedOutput || `Command exited with code ${error.code || 1}: ${error.message}`,
+                error: error.message
+              });
+              return;
+            }
+
+            resolve({
+              toolName: 'terminal',
+              success: true,
+              output: combinedOutput || '(Command executed successfully with empty output)'
+            });
+          }
+        );
+      });
     }
 
     return new Promise((resolve) => {
