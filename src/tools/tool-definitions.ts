@@ -1,8 +1,8 @@
 /**
  * @file tool-definitions.ts
- * @description Tool Schema Definitions and Robust Fallback Tool Call Extractor for Agentyx
- * @purpose Defines OpenAI-compatible tool schemas for 9router API and extracts single/multiple JSON tool calls & aliases from LLM text responses.
- * @functions getAgentyxTools, normalizeToolName, parseToolCallsFromText - Tool schemas & multi-JSON tool call extractor.
+ * @description Tool Schema Definitions and Universal Semantic Tool Intent Resolver for Agentyx
+ * @purpose Defines OpenAI-compatible tool schemas for 9router API and provides a zero-hardcode universal tool intent & parameter inference engine for any LLM payload.
+ * @functions getAgentyxTools, normalizeToolName, inferToolCallFromObject, parseToolCallsFromText - Tool schemas & universal tool call extractor.
  */
 
 import { jsonSanitizer } from '../sanitizer/json-sanitizer.js';
@@ -132,7 +132,7 @@ export function getAgentyxTools(): OpenAIFunctionTool[] {
 }
 
 /**
- * Normalizes tool name aliases like "filesystem.write_file", "terminal.execute_command", etc.
+ * Normalizes any raw tool action string or alias into a canonical Agentyx native tool name.
  */
 export function normalizeToolName(rawName: string): string {
   if (!rawName) return '';
@@ -144,26 +144,60 @@ export function normalizeToolName(rawName: string): string {
     clean.includes('bash') ||
     clean.includes('cmd') ||
     clean.includes('sh') ||
-    clean.includes('command')
+    clean.includes('command') ||
+    clean.includes('shell') ||
+    clean.includes('cli') ||
+    clean.includes('system') ||
+    clean.includes('run')
   ) {
     return 'terminal';
   }
-  if (clean.includes('write_file') || clean.includes('create_file') || clean.includes('save_file')) {
+  if (
+    clean.includes('write_file') ||
+    clean.includes('create_file') ||
+    clean.includes('save_file') ||
+    clean.includes('write') ||
+    clean.includes('create') ||
+    clean.includes('save') ||
+    clean.includes('put')
+  ) {
     return 'write_file';
   }
-  if (clean.includes('read_file') || clean.includes('view_file') || clean.includes('cat')) {
+  if (
+    clean.includes('read_file') ||
+    clean.includes('view_file') ||
+    clean.includes('read') ||
+    clean.includes('view') ||
+    clean.includes('cat') ||
+    clean.includes('load') ||
+    clean.includes('show') ||
+    clean.includes('open')
+  ) {
     return 'read_file';
   }
-  if (clean.includes('list_dir') || clean.includes('ls') || clean.includes('dir')) {
+  if (
+    clean.includes('list_dir') ||
+    clean.includes('dir_list') ||
+    clean.includes('readdir') ||
+    clean.includes('ls') ||
+    clean.includes('list') ||
+    clean.includes('dir') ||
+    clean.includes('tree')
+  ) {
     return 'list_dir';
   }
-  if (clean.includes('grep') || clean.includes('search_file')) {
+  if (
+    clean.includes('grep') ||
+    clean.includes('search_file') ||
+    clean.includes('find_in_files') ||
+    clean.includes('search_code')
+  ) {
     return 'grep_search';
   }
-  if (clean.includes('web_search') || clean.includes('google')) {
+  if (clean.includes('web_search') || clean.includes('google') || clean.includes('bing') || clean.includes('search_web')) {
     return 'web_search';
   }
-  if (clean.includes('web_fetch') || clean.includes('read_url')) {
+  if (clean.includes('web_fetch') || clean.includes('read_url') || clean.includes('curl') || clean.includes('fetch')) {
     return 'web_fetch';
   }
 
@@ -171,56 +205,96 @@ export function normalizeToolName(rawName: string): string {
 }
 
 /**
- * Extracts multiple JSON tool calls & action aliases from raw text responses if LLM returns text blocks instead of API tool_calls.
+ * Zero-Hardcode Universal Tool Intent & Parameter Inference Engine
+ * Inspects any JSON payload structure regardless of key names used by any LLM framework.
+ */
+export function inferToolCallFromObject(obj: Record<string, unknown>): ParsedToolCall | null {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+
+  // 1. Extract any candidate tool name key (tool, action, name, function, intent, type, operation, method, call)
+  let rawName = '';
+  const possibleNameKeys = ['tool', 'action', 'name', 'function', 'intent', 'type', 'operation', 'method', 'call', 'tool_name'];
+  for (const k of possibleNameKeys) {
+    if (typeof obj[k] === 'string' && obj[k]) {
+      rawName = obj[k] as string;
+      break;
+    }
+  }
+
+  // 2. Extract raw arguments dictionary from nested wrapper or root properties
+  let rawArgs: Record<string, unknown> = {};
+  if (obj.arguments && typeof obj.arguments === 'object' && !Array.isArray(obj.arguments)) {
+    rawArgs = { ...(obj.arguments as Record<string, unknown>) };
+  } else if (obj.parameters && typeof obj.parameters === 'object' && !Array.isArray(obj.parameters)) {
+    rawArgs = { ...(obj.parameters as Record<string, unknown>) };
+  } else if (obj.input && typeof obj.input === 'object' && !Array.isArray(obj.input)) {
+    rawArgs = { ...(obj.input as Record<string, unknown>) };
+  } else if (obj.params && typeof obj.params === 'object' && !Array.isArray(obj.params)) {
+    rawArgs = { ...(obj.params as Record<string, unknown>) };
+  } else {
+    rawArgs = { ...obj };
+    possibleNameKeys.forEach(k => delete rawArgs[k]);
+  }
+
+  // 3. Normalize parameter key variations into canonical Agentyx arguments
+  const normalizedArgs: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rawArgs)) {
+    const lk = k.toLowerCase();
+    if (['command', 'cmd', 'script', 'shell', 'code_command', 'exec'].includes(lk) && typeof v === 'string') {
+      normalizedArgs['command'] = v;
+    } else if (['path', 'file', 'filepath', 'filename', 'target', 'file_path', 'dest'].includes(lk) && typeof v === 'string') {
+      normalizedArgs['path'] = v;
+    } else if (['content', 'text', 'code', 'data', 'body', 'file_content'].includes(lk) && typeof v === 'string') {
+      normalizedArgs['content'] = v;
+    } else if (['query', 'pattern', 'search', 'term', 'keyword', 'q'].includes(lk) && typeof v === 'string') {
+      normalizedArgs['query'] = v;
+    } else if (['url', 'link', 'href', 'uri'].includes(lk) && typeof v === 'string') {
+      normalizedArgs['url'] = v;
+    } else if (['cwd', 'working_dir', 'dir_path', 'directory'].includes(lk) && typeof v === 'string') {
+      normalizedArgs['cwd'] = v;
+    } else {
+      normalizedArgs[k] = v;
+    }
+  }
+
+  // 4. Infer Canonical Tool Name using Intent & Signature Analysis
+  let canonicalName = normalizeToolName(rawName);
+
+  if (!canonicalName) {
+    // Structural Signature Detection if rawName was missing or unmapped
+    if (normalizedArgs.command) {
+      canonicalName = 'terminal';
+    } else if (normalizedArgs.path && normalizedArgs.content !== undefined) {
+      canonicalName = 'write_file';
+    } else if (normalizedArgs.path && !normalizedArgs.query) {
+      canonicalName = 'read_file';
+    } else if (normalizedArgs.query) {
+      canonicalName = normalizedArgs.url ? 'web_search' : 'grep_search';
+    } else if (normalizedArgs.url) {
+      canonicalName = 'web_fetch';
+    }
+  }
+
+  if (!canonicalName) return null;
+
+  return {
+    id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    name: canonicalName,
+    arguments: normalizedArgs
+  };
+}
+
+/**
+ * Extracts all valid tool calls from raw LLM text responses (markdown blocks, multiple JSON objects, or key-agnostic payloads).
  */
 export function parseToolCallsFromText(content: string): ParsedToolCall[] {
   const toolCalls: ParsedToolCall[] = [];
   if (!content || !content.trim()) return toolCalls;
 
-  const processJsonObject = (obj: Record<string, unknown>) => {
-    if (!obj || typeof obj !== 'object') return;
-
-    let rawName = '';
-    let rawArgs: Record<string, unknown> = {};
-
-    // Format A: { "tool": "terminal", "command": "..." } or { "tool": "write_file", "path": "...", "content": "..." }
-    if (typeof obj.tool === 'string') {
-      rawName = obj.tool;
-      rawArgs = { ...obj };
-      delete rawArgs.tool;
-    }
-    // Format B: { "action": "filesystem.write_file", "path": "...", "content": "..." }
-    else if (typeof obj.action === 'string') {
-      rawName = obj.action;
-      rawArgs = { ...obj };
-      delete rawArgs.action;
-    }
-    // Format C: { "name": "terminal", "arguments": { "command": "..." } }
-    else if (typeof obj.name === 'string') {
-      rawName = obj.name;
-      if (obj.arguments && typeof obj.arguments === 'object') {
-        rawArgs = obj.arguments as Record<string, unknown>;
-      } else {
-        rawArgs = { ...obj };
-        delete rawArgs.name;
-      }
-    }
-    // Format D: { "command": "..." } or { "path": "...", "content": "..." } without explicit tool name key
-    else if (typeof obj.command === 'string') {
-      rawName = 'terminal';
-      rawArgs = { ...obj };
-    } else if (typeof obj.path === 'string' && typeof obj.content === 'string') {
-      rawName = 'write_file';
-      rawArgs = { ...obj };
-    }
-
-    if (rawName) {
-      const canonicalName = normalizeToolName(rawName);
-      toolCalls.push({
-        id: `call_${Date.now()}_${toolCalls.length}`,
-        name: canonicalName,
-        arguments: rawArgs
-      });
+  const tryAddObject = (obj: Record<string, unknown>) => {
+    const inferred = inferToolCallFromObject(obj);
+    if (inferred) {
+      toolCalls.push(inferred);
     }
   };
 
@@ -229,22 +303,21 @@ export function parseToolCallsFromText(content: string): ParsedToolCall[] {
   let match;
   while ((match = codeBlockRegex.exec(content)) !== null) {
     const rawText = match[1].trim();
-    // Try to parse array or single object
     const parsed = jsonSanitizer.sanitizeAndParse<Record<string, unknown> | Array<Record<string, unknown>>>(rawText);
     if (parsed.success && parsed.data) {
       if (Array.isArray(parsed.data)) {
-        parsed.data.forEach(item => processJsonObject(item));
+        parsed.data.forEach(item => tryAddObject(item));
       } else {
-        processJsonObject(parsed.data as Record<string, unknown>);
+        tryAddObject(parsed.data as Record<string, unknown>);
       }
     } else {
-      // Check for multiple JSON objects inside codeblock without outer array
+      // Extract multiple JSON objects inside codeblock without outer array
       const innerJsonMatches = rawText.match(/\{[\s\S]*?\}(?=\s*(?:\{|$))/g);
       if (innerJsonMatches) {
         for (const jsonStr of innerJsonMatches) {
           const innerParsed = jsonSanitizer.sanitizeAndParse<Record<string, unknown>>(jsonStr);
           if (innerParsed.success && innerParsed.data && typeof innerParsed.data === 'object') {
-            processJsonObject(innerParsed.data);
+            tryAddObject(innerParsed.data);
           }
         }
       }
@@ -258,7 +331,7 @@ export function parseToolCallsFromText(content: string): ParsedToolCall[] {
       for (const jsonStr of jsonMatches) {
         const parsed = jsonSanitizer.sanitizeAndParse<Record<string, unknown>>(jsonStr);
         if (parsed.success && parsed.data && typeof parsed.data === 'object') {
-          processJsonObject(parsed.data);
+          tryAddObject(parsed.data);
         }
       }
     }

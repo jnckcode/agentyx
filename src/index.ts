@@ -22,7 +22,7 @@ import { manifestManager } from './docs/manifest-manager.js';
 import { mcpStatusManager } from './utils/mcp-status.js';
 import { tuiTheme } from './ui/tui-theme.js';
 import { toolExecutor } from './tools/tool-executor.js';
-import { getAgentyxTools, parseToolCallsFromText, ParsedToolCall } from './tools/tool-definitions.js';
+import { getAgentyxTools, parseToolCallsFromText, inferToolCallFromObject, ParsedToolCall } from './tools/tool-definitions.js';
 import { jsonSanitizer } from './sanitizer/json-sanitizer.js';
 
 const program = new Command();
@@ -233,11 +233,13 @@ async function startInteractiveRepl(): Promise<void> {
             } else if (typeof tc.function?.arguments === 'object') {
               argsObj = tc.function.arguments;
             }
-            callsToExecute.push({
-              id: tc.id || `call_${Date.now()}`,
-              name: tc.function?.name || 'terminal',
-              arguments: argsObj
-            });
+            const inferred = inferToolCallFromObject({ name: tc.function?.name, arguments: argsObj });
+            if (inferred) {
+              callsToExecute.push({
+                ...inferred,
+                id: tc.id || inferred.id
+              });
+            }
           }
         } else {
           callsToExecute = parseToolCallsFromText(response.content);

@@ -1,6 +1,6 @@
 {
   "name": "agentyx",
-  "version": "3.2.7",
+  "version": "3.3.0",
   "description": "Platform Agentic AI CLI Global with 9router integration, SQLite Second Brain, and Reasoning Mitigation Engine",
   "type": "module",
   "bin": {
