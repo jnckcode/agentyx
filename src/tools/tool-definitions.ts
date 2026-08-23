@@ -1,7 +1,7 @@
 /**
  * @file tool-definitions.ts
- * @description Tool Schema Definitions and Universal Semantic Tool Intent Resolver for Agentyx
- * @purpose Defines OpenAI-compatible tool schemas for 9router API and provides a zero-hardcode universal tool intent & parameter inference engine for any LLM payload.
+ * @description Tool Schema Definitions and Tokenized Semantic Tool Intent Resolver for Agentyx
+ * @purpose Defines OpenAI-compatible tool schemas for 9router API and provides a structural signature & token-boundary tool intent resolver.
  * @functions getAgentyxTools, normalizeToolName, inferToolCallFromObject, parseToolCallsFromText - Tool schemas & universal tool call extractor.
  */
 
@@ -132,86 +132,59 @@ export function getAgentyxTools(): OpenAIFunctionTool[] {
 }
 
 /**
- * Normalizes any raw tool action string or alias into a canonical Agentyx native tool name.
+ * Normalizes any raw tool action string or alias into a canonical Agentyx native tool name using token boundary matching.
  */
 export function normalizeToolName(rawName: string): string {
   if (!rawName) return '';
   const clean = rawName.toLowerCase().trim();
+  const tokens = clean.split(/[._\-\s\/]+/);
 
-  if (
-    clean.includes('terminal') ||
-    clean.includes('exec') ||
-    clean.includes('bash') ||
-    clean.includes('cmd') ||
-    clean.includes('sh') ||
-    clean.includes('command') ||
-    clean.includes('shell') ||
-    clean.includes('cli') ||
-    clean.includes('system') ||
-    clean.includes('run')
-  ) {
-    return 'terminal';
-  }
-  if (
-    clean.includes('write_file') ||
-    clean.includes('create_file') ||
-    clean.includes('save_file') ||
-    clean.includes('write') ||
-    clean.includes('create') ||
-    clean.includes('save') ||
-    clean.includes('put')
-  ) {
+  // Check write_file tokens first
+  if (tokens.some(t => ['write_file', 'write', 'create_file', 'create', 'save_file', 'save', 'put'].includes(t)) || clean.includes('write_file')) {
     return 'write_file';
   }
-  if (
-    clean.includes('read_file') ||
-    clean.includes('view_file') ||
-    clean.includes('read') ||
-    clean.includes('view') ||
-    clean.includes('cat') ||
-    clean.includes('load') ||
-    clean.includes('show') ||
-    clean.includes('open')
-  ) {
+
+  // Check read_file tokens
+  if (tokens.some(t => ['read_file', 'read', 'view_file', 'view', 'cat', 'load', 'show', 'open'].includes(t)) || clean.includes('read_file')) {
     return 'read_file';
   }
-  if (
-    clean.includes('list_dir') ||
-    clean.includes('dir_list') ||
-    clean.includes('readdir') ||
-    clean.includes('ls') ||
-    clean.includes('list') ||
-    clean.includes('dir') ||
-    clean.includes('tree')
-  ) {
+
+  // Check list_dir tokens
+  if (tokens.some(t => ['list_dir', 'readdir', 'ls', 'dir_list', 'tree'].includes(t)) || clean.includes('list_dir')) {
     return 'list_dir';
   }
-  if (
-    clean.includes('grep') ||
-    clean.includes('search_file') ||
-    clean.includes('find_in_files') ||
-    clean.includes('search_code')
-  ) {
+
+  // Check grep_search tokens
+  if (tokens.some(t => ['grep', 'grep_search', 'search_file', 'find_in_files'].includes(t)) || clean.includes('grep_search')) {
     return 'grep_search';
   }
-  if (clean.includes('web_search') || clean.includes('google') || clean.includes('bing') || clean.includes('search_web')) {
+
+  // Check web_search tokens
+  if (tokens.some(t => ['web_search', 'google', 'bing', 'search_web'].includes(t)) || clean.includes('web_search')) {
     return 'web_search';
   }
-  if (clean.includes('web_fetch') || clean.includes('read_url') || clean.includes('curl') || clean.includes('fetch')) {
+
+  // Check web_fetch tokens
+  if (tokens.some(t => ['web_fetch', 'read_url', 'curl', 'fetch'].includes(t)) || clean.includes('web_fetch')) {
     return 'web_fetch';
+  }
+
+  // Check terminal tokens (exact token matching to avoid false substring match of 'sh' inside 'filesystem')
+  if (tokens.some(t => ['terminal', 'execute_command', 'exec', 'bash', 'cmd', 'shell', 'cli', 'system', 'command', 'run'].includes(t)) || clean.includes('terminal')) {
+    return 'terminal';
   }
 
   return clean;
 }
 
 /**
- * Zero-Hardcode Universal Tool Intent & Parameter Inference Engine
- * Inspects any JSON payload structure regardless of key names used by any LLM framework.
+ * Universal Tool Intent & Parameter Inference Engine
+ * Uses structural signature checking first, followed by tokenized name normalization.
  */
 export function inferToolCallFromObject(obj: Record<string, unknown>): ParsedToolCall | null {
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
 
-  // 1. Extract any candidate tool name key (tool, action, name, function, intent, type, operation, method, call)
+  // 1. Extract any candidate tool name key
   let rawName = '';
   const possibleNameKeys = ['tool', 'action', 'name', 'function', 'intent', 'type', 'operation', 'method', 'call', 'tool_name'];
   for (const k of possibleNameKeys) {
@@ -257,22 +230,24 @@ export function inferToolCallFromObject(obj: Record<string, unknown>): ParsedToo
     }
   }
 
-  // 4. Infer Canonical Tool Name using Intent & Signature Analysis
-  let canonicalName = normalizeToolName(rawName);
+  // 4. Structural Signature Check FIRST (Highest Priority to prevent name alias confusion)
+  let canonicalName = '';
 
+  if (normalizedArgs.path && normalizedArgs.content !== undefined) {
+    canonicalName = 'write_file';
+  } else if (normalizedArgs.command && !normalizedArgs.content) {
+    canonicalName = 'terminal';
+  } else if (normalizedArgs.path && !normalizedArgs.query) {
+    canonicalName = 'read_file';
+  } else if (normalizedArgs.query) {
+    canonicalName = normalizedArgs.url ? 'web_search' : 'grep_search';
+  } else if (normalizedArgs.url) {
+    canonicalName = 'web_fetch';
+  }
+
+  // Fallback to tokenized tool name normalization if signature was ambiguous
   if (!canonicalName) {
-    // Structural Signature Detection if rawName was missing or unmapped
-    if (normalizedArgs.command) {
-      canonicalName = 'terminal';
-    } else if (normalizedArgs.path && normalizedArgs.content !== undefined) {
-      canonicalName = 'write_file';
-    } else if (normalizedArgs.path && !normalizedArgs.query) {
-      canonicalName = 'read_file';
-    } else if (normalizedArgs.query) {
-      canonicalName = normalizedArgs.url ? 'web_search' : 'grep_search';
-    } else if (normalizedArgs.url) {
-      canonicalName = 'web_fetch';
-    }
+    canonicalName = normalizeToolName(rawName);
   }
 
   if (!canonicalName) return null;
