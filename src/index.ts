@@ -103,7 +103,9 @@ async function startInteractiveRepl(): Promise<void> {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: tuiTheme.getRichPromptBadge()
+    prompt: tuiTheme.getRichPromptBadge(),
+    terminal: true, // Forces full ANSI terminal capabilities for Arrow navigation, Backspace, Home, End across Termux & all OS
+    historySize: 100
   });
 
   rl.prompt();
@@ -119,12 +121,15 @@ async function startInteractiveRepl(): Promise<void> {
   let pasteTimer: NodeJS.Timeout | null = null;
 
   const processInput = async (input: string, lineCount: number = 1) => {
-    if (!input || !input.trim()) {
+    // Strip any orphaned ANSI escape control codes (like \x1b[D, \x1b[C from raw arrow keys)
+    const sanitizedInput = (input || '').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+
+    if (!sanitizedInput) {
       rl.prompt();
       return;
     }
 
-    const trimmed = input.trim();
+    const trimmed = sanitizedInput;
 
     // OpenCode-Style UI: Replace raw multiline paste clutter with compact [~pasted xx lines~] badge
     if (lineCount > 2) {
