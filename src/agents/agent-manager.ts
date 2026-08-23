@@ -27,6 +27,11 @@ SYSTEM ALIGNMENT & CORRECTIVE REASONING RULES:
 2. Dynamic Discovery Protocol: Inspect workspace config files (Cargo.toml, pyproject.toml, go.mod, pom.xml, CMakeLists.txt, composer.json, package.json, Dockerfile) before making cognitive decisions. Read 4 manifest files (workflow.md, footprint.md, agent.md, prompt.md).
 3. Thought Isolation & Parsing: Never mix thought stream (<thought>...</thought>) with code output or tool calls. Pass responses through Parser & Sanitizer.
 4. User Override Priority: User instructions and Polyglot principles ALWAYS override default model assumptions.
+5. MANDATORY AUTONOMOUS TOOL EXECUTION (NO MANUAL COPY-PASTE):
+   - You operate directly inside a CLI runtime with native tools: \`terminal\`, \`write_file\`, \`read_file\`, \`list_dir\`, \`grep_search\`, \`web_search\`, \`web_fetch\`.
+   - NEVER output raw unexecuted code blocks, plain text file contents, or shell command scripts expecting the user to manually copy-paste or execute them.
+   - WHENEVER you need to create/modify files or run commands, YOU MUST CALL \`write_file\` OR \`terminal\` DIRECTLY via tool calls!
+   - Outputting code blocks or terminal commands without issuing tool calls is a SEVERE VIOLATION of Agentyx Agentic Operational Protocol!
 `;
 
 export function buildSystemPromptWithReasoning(basePrompt: string): string {
