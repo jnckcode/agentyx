@@ -1,13 +1,14 @@
 /**
  * @file tool-executor.ts
- * @description Native Tool Execution Engine for Agentyx
- * @purpose Executes terminal commands (Termux/Linux/Windows), filesystem operations, web search, and MCP tools with cross-platform safety.
+ * @description Native Cross-Platform Tool Execution Engine for Agentyx
+ * @purpose Executes terminal commands (Termux Android, Linux, macOS, Windows), filesystem operations, web search, and MCP tools with cross-platform safety & directory persistence.
  * @functions ToolExecutor - Class with executeTool, runTerminalCommand, readFile, writeFile, listDir, grepSearch methods.
  */
 
 import { exec } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { nineRouterClient } from '../router/ninerouter-client.js';
 
 export interface ToolCallPayload {
@@ -24,13 +25,60 @@ export interface ToolExecutionResult {
 
 export class ToolExecutor {
   /**
+   * Expands tilde (~) to user home directory and resolves absolute path cross-platform
+   */
+  public expandPath(filePath: string): string {
+    if (!filePath || !filePath.trim()) return process.cwd();
+    let cleaned = filePath.trim();
+
+    if (cleaned.startsWith('~/') || cleaned === '~') {
+      cleaned = path.join(os.homedir(), cleaned.slice(1).replace(/^[/\\]/, ''));
+    }
+
+    return path.resolve(cleaned);
+  }
+
+  /**
+   * Dynamically resolves shell executable path across Termux (Android), Linux, macOS, and Windows
+   */
+  public resolveShell(): string | undefined {
+    if (process.platform === 'win32') {
+      return undefined; // Uses Windows default cmd.exe / powershell
+    }
+
+    // 1. Termux environment detection ($PREFIX/bin/bash or $PREFIX/bin/sh)
+    if (process.env.PREFIX) {
+      const termuxBash = path.join(process.env.PREFIX, 'bin', 'bash');
+      if (fs.existsSync(termuxBash)) return termuxBash;
+
+      const termuxSh = path.join(process.env.PREFIX, 'bin', 'sh');
+      if (fs.existsSync(termuxSh)) return termuxSh;
+    }
+
+    // 2. Custom $SHELL environment variable check
+    if (process.env.SHELL && fs.existsSync(process.env.SHELL)) {
+      return process.env.SHELL;
+    }
+
+    // 3. Standard Linux / macOS / Android fallback paths
+    const candidates = ['/bin/bash', '/bin/sh', '/usr/bin/bash', '/usr/bin/sh', '/system/bin/sh'];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
    * Main dispatcher to execute a named tool call
    */
   public async executeTool(toolName: string, args: Record<string, unknown>): Promise<ToolExecutionResult> {
     const name = toolName.toLowerCase().trim();
 
     try {
-      if (name === 'terminal' || name === 'run_command' || name === 'exec' || name === 'bash' || name === 'cmd') {
+      if (name === 'terminal' || name === 'run_command' || name === 'exec' || name === 'bash' || name === 'cmd' || name === 'sh') {
         const command = String(args.command || args.cmd || args.script || '');
         const cwd = args.cwd ? String(args.cwd) : process.cwd();
         return await this.runTerminalCommand(command, cwd);
@@ -99,27 +147,51 @@ export class ToolExecutor {
   }
 
   /**
-   * Runs terminal bash/sh/cmd command with cross-platform support (Termux, Linux, Windows)
+   * Runs terminal command with cross-platform shell detection, `cd` tracking, and environment preservation
    */
   public async runTerminalCommand(command: string, cwd: string = process.cwd()): Promise<ToolExecutionResult> {
-    if (!command || !command.trim()) {
+    const trimmedCmd = (command || '').trim();
+    if (!trimmedCmd) {
       return { toolName: 'terminal', success: false, output: 'Error: Empty terminal command provided.' };
     }
 
+    // Intercept `cd <dir>` commands to persist working directory across turns
+    if (trimmedCmd.startsWith('cd ') || trimmedCmd === 'cd') {
+      const targetArg = trimmedCmd.slice(2).trim().replace(/^['"]|['"]$/g, '');
+      const targetDir = this.expandPath(targetArg || '~');
+
+      if (fs.existsSync(targetDir) && fs.statSync(targetDir).isDirectory()) {
+        try {
+          process.chdir(targetDir);
+          return {
+            toolName: 'terminal',
+            success: true,
+            output: `✔ Changed working directory to: ${process.cwd()}`
+          };
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return { toolName: 'terminal', success: false, output: `Failed to change directory: ${msg}` };
+        }
+      } else {
+        return { toolName: 'terminal', success: false, output: `Directory not found: ${targetDir}` };
+      }
+    }
+
     return new Promise((resolve) => {
-      // Shell options: handle Termux $PREFIX path (/data/data/com.termux/files/usr/bin/sh or bash), Linux, and Windows
-      const isWindows = process.platform === 'win32';
-      const termuxShell = process.env.PREFIX ? `${process.env.PREFIX}/bin/bash` : undefined;
-      const shellOption = isWindows ? undefined : (process.env.SHELL || termuxShell || '/bin/sh');
+      const shellExecutable = this.resolveShell();
+      const workingDir = this.expandPath(cwd);
 
       exec(
-        command,
+        trimmedCmd,
         {
-          cwd: path.resolve(cwd),
-          timeout: 30000, // 30 second safety timeout
-          maxBuffer: 1024 * 1024 * 5, // 5MB buffer
-          shell: shellOption,
-          env: process.env
+          cwd: workingDir,
+          timeout: 45000, // 45 second timeout for heavy builds
+          maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+          shell: shellExecutable,
+          env: {
+            ...process.env,
+            PAGER: 'cat'
+          }
         },
         (error, stdout, stderr) => {
           const combinedOutput = [
@@ -131,10 +203,9 @@ export class ToolExecutor {
             resolve({
               toolName: 'terminal',
               success: false,
-              output: combinedOutput || `Command failed with code ${error.code || 1}: ${error.message}`,
+              output: combinedOutput || `Command exited with code ${error.code || 1}: ${error.message}`,
               error: error.message
             });
-
             return;
           }
 
@@ -149,102 +220,133 @@ export class ToolExecutor {
   }
 
   /**
-   * Reads file content from local path
+   * Reads file content with path expansion & error handling
    */
   public readFile(filePath: string): ToolExecutionResult {
-    const resolvedPath = path.resolve(filePath);
+    const resolvedPath = this.expandPath(filePath);
+
     if (!fs.existsSync(resolvedPath)) {
-      return { toolName: 'read_file', success: false, output: `File not found: ${filePath}` };
+      return { toolName: 'read_file', success: false, output: `File not found: ${filePath} (Resolved: ${resolvedPath})` };
     }
 
-    const stat = fs.statSync(resolvedPath);
-    if (stat.isDirectory()) {
-      return { toolName: 'read_file', success: false, output: `Target path is a directory, not a file: ${filePath}` };
-    }
+    try {
+      const stat = fs.statSync(resolvedPath);
+      if (stat.isDirectory()) {
+        return { toolName: 'read_file', success: false, output: `Target path is a directory: ${filePath}` };
+      }
 
-    const content = fs.readFileSync(resolvedPath, 'utf-8');
-    return {
-      toolName: 'read_file',
-      success: true,
-      output: `--- File: ${filePath} (${content.length} bytes) ---\n${content.slice(0, 8000)}`
-    };
+      const content = fs.readFileSync(resolvedPath, 'utf-8');
+      return {
+        toolName: 'read_file',
+        success: true,
+        output: `--- File: ${path.relative(process.cwd(), resolvedPath)} (${content.length} bytes) ---\n${content.slice(0, 10000)}`
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { toolName: 'read_file', success: false, output: `Read error: ${msg}` };
+    }
   }
 
   /**
-   * Writes content to local file
+   * Writes content to file with directory creation
    */
   public writeFile(filePath: string, content: string): ToolExecutionResult {
-    const resolvedPath = path.resolve(filePath);
+    const resolvedPath = this.expandPath(filePath);
     const dir = path.dirname(resolvedPath);
 
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
 
-    fs.writeFileSync(resolvedPath, content, 'utf-8');
-    return {
-      toolName: 'write_file',
-      success: true,
-      output: `✔ Successfully wrote ${content.length} characters to ${filePath}`
-    };
+      fs.writeFileSync(resolvedPath, content, 'utf-8');
+      return {
+        toolName: 'write_file',
+        success: true,
+        output: `✔ Successfully wrote ${content.length} characters to ${path.relative(process.cwd(), resolvedPath)}`
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { toolName: 'write_file', success: false, output: `Write error: ${msg}` };
+    }
   }
 
   /**
-   * Lists directory contents
+   * Lists directory contents with icons & sizes
    */
   public listDir(dirPath: string): ToolExecutionResult {
-    const resolvedPath = path.resolve(dirPath);
+    const resolvedPath = this.expandPath(dirPath);
+
     if (!fs.existsSync(resolvedPath)) {
       return { toolName: 'list_dir', success: false, output: `Directory not found: ${dirPath}` };
     }
 
-    const files = fs.readdirSync(resolvedPath);
-    const items = files.map(file => {
-      try {
-        const full = path.join(resolvedPath, file);
-        const stat = fs.statSync(full);
-        return stat.isDirectory() ? `📁 ${file}/` : `📄 ${file} (${stat.size}B)`;
-      } catch {
-        return `❓ ${file}`;
-      }
-    });
+    try {
+      const files = fs.readdirSync(resolvedPath);
+      const items = files.map(file => {
+        try {
+          const full = path.join(resolvedPath, file);
+          const stat = fs.statSync(full);
+          return stat.isDirectory() ? `📁 ${file}/` : `📄 ${file} (${stat.size}B)`;
+        } catch {
+          return `❓ ${file}`;
+        }
+      });
 
-    return {
-      toolName: 'list_dir',
-      success: true,
-      output: `--- Directory Listing: ${dirPath} ---\n${items.join('\n')}`
-    };
+      return {
+        toolName: 'list_dir',
+        success: true,
+        output: `--- Directory: ${path.relative(process.cwd(), resolvedPath) || '.'} (${files.length} items) ---\n${items.join('\n')}`
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { toolName: 'list_dir', success: false, output: `List directory error: ${msg}` };
+    }
   }
 
   /**
-   * Searches pattern in workspace files
+   * Searches pattern in workspace files with safety exclusions
    */
   public grepSearch(query: string, searchPath: string = '.'): ToolExecutionResult {
-    const resolved = path.resolve(searchPath);
+    const resolved = this.expandPath(searchPath);
     const results: string[] = [];
 
     const walk = (dir: string) => {
       if (results.length > 50) return;
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
 
-      for (const entry of entries) {
-        if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist') continue;
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          walk(full);
-        } else if (entry.isFile()) {
-          try {
-            const content = fs.readFileSync(full, 'utf-8');
-            const lines = content.split('\n');
-            lines.forEach((line, idx) => {
-              if (line.toLowerCase().includes(query.toLowerCase())) {
-                results.push(`${path.relative(process.cwd(), full)}:${idx + 1}: ${line.trim()}`);
-              }
-            });
-          } catch {
-            // Ignore unreadable binary files
+        for (const entry of entries) {
+          if (
+            entry.name === 'node_modules' ||
+            entry.name === '.git' ||
+            entry.name === 'dist' ||
+            entry.name === '.agentyx' ||
+            entry.name.endsWith('.db') ||
+            entry.name.endsWith('.sqlite')
+          ) {
+            continue;
+          }
+
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            walk(full);
+          } else if (entry.isFile()) {
+            try {
+              const content = fs.readFileSync(full, 'utf-8');
+              const lines = content.split('\n');
+              lines.forEach((line, idx) => {
+                if (line.toLowerCase().includes(query.toLowerCase())) {
+                  results.push(`${path.relative(process.cwd(), full)}:${idx + 1}: ${line.trim()}`);
+                }
+              });
+            } catch {
+              // Ignore binary / unreadable files
+            }
           }
         }
+      } catch {
+        // Skip unreadable directories
       }
     };
 
