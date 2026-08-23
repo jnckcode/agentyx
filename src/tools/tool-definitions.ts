@@ -1,7 +1,7 @@
 /**
  * @file tool-definitions.ts
- * @description Tool Schema Definitions and Tokenized Semantic Tool Intent Resolver for Agentyx
- * @purpose Defines OpenAI-compatible tool schemas for 9router API and provides a structural signature & token-boundary tool intent resolver.
+ * @description Tool Schema Definitions, Tokenized Intent Resolver, and Shell Codeblock Interceptor for Agentyx
+ * @purpose Defines OpenAI-compatible tool schemas for 9router API and provides shell codeblock fallback interception.
  * @functions getAgentyxTools, normalizeToolName, inferToolCallFromObject, parseToolCallsFromText - Tool schemas & universal tool call extractor.
  */
 
@@ -260,7 +260,10 @@ export function inferToolCallFromObject(obj: Record<string, unknown>): ParsedToo
 }
 
 /**
- * Extracts all valid tool calls from raw LLM text responses (markdown blocks, multiple JSON objects, or key-agnostic payloads).
+ * Extracts all valid tool calls from raw LLM text responses:
+ * 1. Markdown JSON codeblocks
+ * 2. Multiple raw JSON objects
+ * 3. Fallback Interceptor for tagged shell/bash codeblocks (```bash ... ```)
  */
 export function parseToolCallsFromText(content: string): ParsedToolCall[] {
   const toolCalls: ParsedToolCall[] = [];
@@ -308,6 +311,23 @@ export function parseToolCallsFromText(content: string): ParsedToolCall[] {
         if (parsed.success && parsed.data && typeof parsed.data === 'object') {
           tryAddObject(parsed.data);
         }
+      }
+    }
+  }
+
+  // 3. Fallback Interceptor: Shell/Bash Codeblocks (```bash ... ```, ```sh ... ```, ```cmd ... ```)
+  // If no structured JSON tool call was extracted, catch tagged shell blocks and convert to terminal tool call automatically!
+  if (toolCalls.length === 0) {
+    const shellBlockRegex = /```(?:bash|sh|shell|powershell|cmd|zsh)\s*([\s\S]*?)\s*```/gi;
+    let shellMatch;
+    while ((shellMatch = shellBlockRegex.exec(content)) !== null) {
+      const rawCmd = shellMatch[1].trim();
+      if (rawCmd && !rawCmd.startsWith('{')) {
+        toolCalls.push({
+          id: `call_${Date.now()}_${toolCalls.length}`,
+          name: 'terminal',
+          arguments: { command: rawCmd }
+        });
       }
     }
   }

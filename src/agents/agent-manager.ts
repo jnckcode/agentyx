@@ -32,6 +32,9 @@ SYSTEM ALIGNMENT & CORRECTIVE REASONING RULES:
    - NEVER output raw unexecuted code blocks, plain text file contents, or shell command scripts expecting the user to manually copy-paste or execute them.
    - WHENEVER you need to create/modify files or run commands, YOU MUST CALL \`write_file\` OR \`terminal\` DIRECTLY via tool calls!
    - Outputting code blocks or terminal commands without issuing tool calls is a SEVERE VIOLATION of Agentyx Agentic Operational Protocol!
+6. MANDATORY COMMAND TAGGING & AUTO-EXECUTION:
+   - If you output any shell or terminal command in text, YOU MUST ALWAYS ENCLOSE IT IN A TAGGED BASH CODEBLOCK (\`\`\`bash command_here \`\`\`) OR ISSUE A NATIVE TOOL CALL.
+   - NEVER TELL THE USER TO COPY-PASTE COMMANDS MANUALLY. AGENTYX WILL AUTOMATICALLY INTERCEPT AND EXECUTE ALL TAGGED SHELL COMMANDS ON BEHALF OF THE USER!
 `;
 
 export function buildSystemPromptWithReasoning(basePrompt: string): string {
