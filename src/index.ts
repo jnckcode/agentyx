@@ -1,8 +1,8 @@
 /**
  * @file index.ts
- * @description Main entry point for Agentyx AI Agentic CLI Platform (Version 3.0)
- * @purpose Bootstraps REPL shell, Commander CLI options, 9router integration, SQLite Second Brain, TUI Box aesthetics, and Interactive Slash Menu.
- * @functions startInteractiveRepl, main - Main CLI execution loop and slash command processor.
+ * @description Main entry point for Agentyx AI Agentic CLI Platform (Version 3.2.2)
+ * @purpose Bootstraps REPL shell, Commander CLI options, 9router integration, SQLite Second Brain, TUI Box aesthetics, Multi-Turn Agent Loop, and Smart Multiline Paste Buffer.
+ * @functions startInteractiveRepl, handleUserPrompt, main - Main CLI execution loop, paste debouncer, and slash command processor.
  */
 
 import readline from 'node:readline';
@@ -30,7 +30,7 @@ const program = new Command();
 program
   .name('agentyx')
   .description('Platform Agentic AI CLI Global with 9router integration, SQLite Second Brain, and Reasoning Mitigation')
-  .version('3.0.0')
+  .version('3.2.2')
   .option('-i, --init', 'Initialize mandatory 4 manifest documentation bundle in current workspace')
   .option('-s, --remove-slop', 'Scan & clean AI slop from active workspace')
   .option('-l, --sessions', 'List saved sessions in SQLite Second Brain')
@@ -114,14 +114,19 @@ async function startInteractiveRepl(): Promise<void> {
     rl.prompt();
   });
 
-  rl.on('line', async (line: string) => {
-    const input = line.trim();
-    if (!input) {
+  // Smart Multiline Paste Buffer Collector
+  let pasteBuffer: string[] = [];
+  let pasteTimer: NodeJS.Timeout | null = null;
+
+  const processInput = async (input: string) => {
+    if (!input || !input.trim()) {
       rl.prompt();
       return;
     }
 
-    if (input.toLowerCase() === 'exit' || input.toLowerCase() === 'quit' || input.toLowerCase() === '/exit') {
+    const trimmed = input.trim();
+
+    if (trimmed.toLowerCase() === 'exit' || trimmed.toLowerCase() === 'quit' || trimmed.toLowerCase() === '/exit') {
       console.log(chalk.bold.yellow('\nGoodbye! Session saved in SQLite Second Brain.'));
       dbDriver.close();
       rl.close();
@@ -130,10 +135,10 @@ async function startInteractiveRepl(): Promise<void> {
     }
 
     // Handle Slash Commands
-    if (slashHandler.isSlashCommand(input)) {
+    if (slashHandler.isSlashCommand(trimmed)) {
       rl.pause();
       try {
-        const output = await slashHandler.handleSlashCommand(input);
+        const output = await slashHandler.handleSlashCommand(trimmed);
         if (output === '__EXIT__') {
           console.log(chalk.bold.yellow('\nGoodbye! Session saved in SQLite Second Brain.'));
           dbDriver.close();
@@ -156,17 +161,17 @@ async function startInteractiveRepl(): Promise<void> {
       return;
     }
 
-    // Handle standard user prompt
+    // Handle standard user prompt (including multiline error logs)
     const activeAgent = agentManager.getActiveAgent();
     cfg = configManager.getConfig();
 
     // 1. Record user message in SQLite
-    sessionStore.addMessage(currentSessionId!, 'user', input);
+    sessionStore.addMessage(currentSessionId!, 'user', trimmed);
     manifestManager.logFootprint('USER_PROMPT', `Prompt submitted in session [${currentSessionId!.slice(0, 8)}]`);
 
     // 2. Build message context including 4 manifest files context
     const manifests = manifestManager.readAllManifests();
-    const systemInstruction = `${activeAgent.systemInstruction}\n\nProject Context:\nWorkflow: ${manifests.workflow.slice(0, 500)}\nAgent State: ${manifests.agent.slice(0, 300)}\n\nIMPORTANT SYSTEM RULE: You have active native tools: \`terminal\` (executes shell commands), \`read_file\`, \`write_file\`, \`list_dir\`, \`grep_search\`, \`web_search\`, and \`web_fetch\`. Whenever the user asks you to run terminal/shell commands, read files, edit code, or check directories, DO NOT output plain text explanations or unexecuted code blocks. CALL THE RELEVANT TOOL DIRECTLY via function calls or JSON format (\`\`\`json { "tool": "terminal", "command": "..." } \`\`\`).`;
+    const systemInstruction = `${activeAgent.systemInstruction}\n\nProject Context:\nWorkflow: ${manifests.workflow.slice(0, 500)}\nAgent State: ${manifests.agent.slice(0, 300)}\n\nIMPORTANT SYSTEM RULE: You have active native tools: \`terminal\` (executes shell commands), \`read_file\`, \`write_file\`, \`list_dir\`, \`grep_search\`, \`web_search\`, and \`web_fetch\`. Whenever the user asks you to run terminal/shell commands, read files, edit code, or analyze pasted error logs, DO NOT output plain text explanations or unexecuted code blocks. CALL THE RELEVANT TOOL DIRECTLY via function calls or JSON format (\`\`\`json { "tool": "terminal", "command": "..." } \`\`\`).`;
 
     const historyMessages = sessionStore.getSessionMessages(currentSessionId!);
     const apiMessages: ChatMessage[] = [
@@ -276,6 +281,22 @@ async function startInteractiveRepl(): Promise<void> {
     process.stdin.resume();
     rl.setPrompt(tuiTheme.getRichPromptBadge());
     rl.prompt();
+  };
+
+  rl.on('line', (line: string) => {
+    pasteBuffer.push(line);
+
+    if (pasteTimer) {
+      clearTimeout(pasteTimer);
+    }
+
+    pasteTimer = setTimeout(async () => {
+      const accumulatedInput = pasteBuffer.join('\n');
+      pasteBuffer = [];
+      pasteTimer = null;
+
+      await processInput(accumulatedInput);
+    }, 60); // 60ms debounce window collects pasted multiline logs together
   });
 
   rl.on('close', () => {
