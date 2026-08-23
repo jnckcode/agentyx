@@ -1,8 +1,8 @@
 /**
  * @file index.ts
- * @description Main entry point for Agentyx AI Agentic CLI Platform (Version 3.2.2)
- * @purpose Bootstraps REPL shell, Commander CLI options, 9router integration, SQLite Second Brain, TUI Box aesthetics, Multi-Turn Agent Loop, and Smart Multiline Paste Buffer.
- * @functions startInteractiveRepl, handleUserPrompt, main - Main CLI execution loop, paste debouncer, and slash command processor.
+ * @description Main entry point for Agentyx AI Agentic CLI Platform (Version 3.2.3)
+ * @purpose Bootstraps REPL shell, Commander CLI options, 9router integration, SQLite Second Brain, TUI Box aesthetics, Multi-Turn Agent Loop, and OpenCode-Style [~pasted xx lines~] UI.
+ * @functions startInteractiveRepl, processInput, main - Main CLI execution loop, paste debouncer, and slash command processor.
  */
 
 import readline from 'node:readline';
@@ -30,7 +30,7 @@ const program = new Command();
 program
   .name('agentyx')
   .description('Platform Agentic AI CLI Global with 9router integration, SQLite Second Brain, and Reasoning Mitigation')
-  .version('3.2.2')
+  .version('3.2.3')
   .option('-i, --init', 'Initialize mandatory 4 manifest documentation bundle in current workspace')
   .option('-s, --remove-slop', 'Scan & clean AI slop from active workspace')
   .option('-l, --sessions', 'List saved sessions in SQLite Second Brain')
@@ -114,17 +114,28 @@ async function startInteractiveRepl(): Promise<void> {
     rl.prompt();
   });
 
-  // Smart Multiline Paste Buffer Collector
+  // Smart Multiline Paste Buffer Collector & OpenCode-Style Renderer
   let pasteBuffer: string[] = [];
   let pasteTimer: NodeJS.Timeout | null = null;
 
-  const processInput = async (input: string) => {
+  const processInput = async (input: string, lineCount: number = 1) => {
     if (!input || !input.trim()) {
       rl.prompt();
       return;
     }
 
     const trimmed = input.trim();
+
+    // OpenCode-Style UI: Replace raw multiline paste clutter with compact [~pasted xx lines~] badge
+    if (lineCount > 2) {
+      try {
+        readline.moveCursor(process.stdout, 0, -Math.min(lineCount, 30));
+        readline.clearScreenDown(process.stdout);
+        console.log(chalk.cyan.bold(`\n[📋 ~pasted ${lineCount} lines~]\n`));
+      } catch {
+        console.log(chalk.cyan.bold(`\n[📋 ~pasted ${lineCount} lines~]\n`));
+      }
+    }
 
     if (trimmed.toLowerCase() === 'exit' || trimmed.toLowerCase() === 'quit' || trimmed.toLowerCase() === '/exit') {
       console.log(chalk.bold.yellow('\nGoodbye! Session saved in SQLite Second Brain.'));
@@ -291,11 +302,12 @@ async function startInteractiveRepl(): Promise<void> {
     }
 
     pasteTimer = setTimeout(async () => {
+      const lineCount = pasteBuffer.length;
       const accumulatedInput = pasteBuffer.join('\n');
       pasteBuffer = [];
       pasteTimer = null;
 
-      await processInput(accumulatedInput);
+      await processInput(accumulatedInput, lineCount);
     }, 60); // 60ms debounce window collects pasted multiline logs together
   });
 
