@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import ora from 'ora';
 import { manifestManager } from '../docs/manifest-manager.js';
+import { PALETTE } from '../ui/tui-theme.js';
 
 const execAsync = promisify(exec);
 
@@ -24,12 +25,12 @@ export function getCurrentVersion(): string {
     const pkgPath = path.resolve(__dirname, '../../package.json');
     if (fs.existsSync(pkgPath)) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-      return pkg.version || '3.4.0';
+      return pkg.version || '3.4.1';
     }
   } catch {
     // Fallback default
   }
-  return '3.4.0';
+  return '3.4.1';
 }
 
 export async function checkLatestVersion(): Promise<string | null> {
@@ -77,23 +78,23 @@ export function isNewerVersion(current: string, latest: string): boolean {
 
 export async function executeUpdateCommand(force: boolean = false): Promise<string> {
   const currentVersion = getCurrentVersion();
-  const spinner = ora(chalk.bold.yellow(`Memeriksa versi terbaru Agentyx dari npm registry...`)).start();
+  const spinner = ora(chalk.bold.hex(PALETTE.goldYellow)(`Memeriksa versi terbaru Agentyx dari npm registry...`)).start();
 
   const latestVersion = await checkLatestVersion();
 
   if (!latestVersion && !force) {
-    spinner.warn(chalk.yellow(`Gagal memeriksa versi terbaru dari npm registry (mungkin offline atau package baru).`));
-    return chalk.yellow(`\nℹ Versi lokal saat ini: v${currentVersion}\n💡 Untuk memaksa pembaruan: /update force atau jalankan 'npm install -g agentyx@latest'\n`);
+    spinner.warn(chalk.hex(PALETTE.warmAmber)(`Gagal memeriksa versi terbaru dari npm registry (mungkin offline atau package baru).`));
+    return chalk.hex(PALETTE.creamSand)(`\nℹ Versi lokal saat ini: v${currentVersion}\n`) + chalk.bold.hex(PALETTE.warmAmber)(`💡 Untuk memaksa pembaruan: /update force atau jalankan 'npm install -g agentyx@latest'\n`);
   }
 
   const hasUpdate = latestVersion ? isNewerVersion(currentVersion, latestVersion) : false;
 
   if (!hasUpdate && !force) {
-    spinner.succeed(chalk.green(`Agentyx sudah menggunakan versi terbaru: v${currentVersion}`));
-    return chalk.bold.green(`\n✔ Versi Agentyx Anda sudah up-to-date (v${currentVersion}). Tidak perlu update!\n`);
+    spinner.succeed(chalk.bold.hex(PALETTE.lemonLight)(`Agentyx sudah menggunakan versi terbaru: v${currentVersion}`));
+    return chalk.bold.hex(PALETTE.lemonLight)(`\n✔ Versi Agentyx Anda sudah up-to-date (v${currentVersion}). Tidak perlu update!\n`);
   }
 
-  spinner.text = chalk.bold.cyan(`Memperbarui Agentyx dari v${currentVersion} ke v${latestVersion || 'latest'}...`);
+  spinner.text = chalk.bold.hex(PALETTE.goldYellow)(`Memperbarui Agentyx dari v${currentVersion} ke v${latestVersion || 'latest'}...`);
 
   // Detect whether running in a git clone repository or global npm package
   const rootDir = path.resolve(__dirname, '../../');
@@ -101,31 +102,31 @@ export async function executeUpdateCommand(force: boolean = false): Promise<stri
 
   try {
     if (isGitRepo) {
-      spinner.text = chalk.bold.cyan(`Terdeteksi repo git lokal. Menjalankan git pull & npm run build...`);
+      spinner.text = chalk.bold.hex(PALETTE.goldYellow)(`Terdeteksi repo git lokal. Menjalankan git pull & npm run build...`);
       await execAsync('git pull origin main && npm run build', { cwd: rootDir });
     } else {
-      spinner.text = chalk.bold.cyan(`Menjalankan npm install -g agentyx@latest...`);
+      spinner.text = chalk.bold.hex(PALETTE.goldYellow)(`Menjalankan npm install -g agentyx@latest...`);
       await execAsync('npm install -g agentyx@latest');
     }
 
-    spinner.succeed(chalk.bold.green(`Pembaruan berhasil diselesaikan!`));
+    spinner.succeed(chalk.bold.hex(PALETTE.lemonLight)(`Pembaruan berhasil diselesaikan!`));
 
     const updatedVersion = latestVersion || 'latest';
     manifestManager.logFootprint('SYSTEM_UPDATE', `Updated Agentyx from v${currentVersion} to v${updatedVersion}`);
 
-    let report = chalk.bold.cyan('\n┌────────────────────────────────────────────────────────────────────────┐\n');
-    report += chalk.bold.cyan('│ ') + chalk.bold.bgGreen.black(' ✨ AGENTYX BERHASIL DIPERBARUI KE VERSI TERBARU ✨ ') + chalk.bold.cyan('                 │\n');
-    report += chalk.bold.cyan('└────────────────────────────────────────────────────────────────────────┘\n\n');
-    report += `  ${chalk.bold.yellow('Versi Lama')}     : ${chalk.red('v' + currentVersion)}\n`;
-    report += `  ${chalk.bold.yellow('Versi Terbaru')}  : ${chalk.green('v' + updatedVersion)}\n`;
-    report += `  ${chalk.bold.yellow('Metode Update')}  : ${chalk.cyan(isGitRepo ? 'Git Pull & Recompile (Local Build)' : 'Global NPM In-Place Upgrade')}\n\n`;
-    report += chalk.bold.yellow('💡 Catatan: ') + chalk.white('Silakan restart CLI Agentyx Anda untuk memuat seluruh modul baru.\n');
+    let report = chalk.bold.hex(PALETTE.forestDark)('\n┌────────────────────────────────────────────────────────────────────────┐\n');
+    report += chalk.bold.hex(PALETTE.forestDark)('│ ') + chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(' ✨ AGENTYX BERHASIL DIPERBARUI KE VERSI TERBARU ✨ ') + chalk.bold.hex(PALETTE.forestDark)('                 │\n');
+    report += chalk.bold.hex(PALETTE.forestDark)('└────────────────────────────────────────────────────────────────────────┘\n\n');
+    report += `  ${chalk.bold.hex(PALETTE.goldYellow)('Versi Lama')}     : ${chalk.hex(PALETTE.warmAmber)('v' + currentVersion)}\n`;
+    report += `  ${chalk.bold.hex(PALETTE.goldYellow)('Versi Terbaru')}  : ${chalk.bold.hex(PALETTE.lemonLight)('v' + updatedVersion)}\n`;
+    report += `  ${chalk.bold.hex(PALETTE.goldYellow)('Metode Update')}  : ${chalk.hex(PALETTE.creamSand)(isGitRepo ? 'Git Pull & Recompile (Local Build)' : 'Global NPM In-Place Upgrade')}\n\n`;
+    report += chalk.bold.hex(PALETTE.warmAmber)('💡 Catatan: ') + chalk.hex(PALETTE.creamSand)('Silakan restart CLI Agentyx Anda untuk memuat seluruh modul baru.\n');
 
     return report;
   } catch (err: unknown) {
     spinner.fail(chalk.red(`Gagal memperbarui Agentyx otomatis.`));
     const msg = err instanceof Error ? err.message : String(err);
     return chalk.red(`\n❌ Error saat update: ${msg}\n`) +
-      chalk.yellow(`💡 Solusi alternatif: Jalankan perintah berikut di terminal Anda:\n  npm install -g agentyx@latest\n`);
+      chalk.hex(PALETTE.warmAmber)(`💡 Solusi alternatif: Jalankan perintah berikut di terminal Anda:\n  npm install -g agentyx@latest\n`);
   }
 }

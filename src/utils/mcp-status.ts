@@ -7,6 +7,7 @@
 
 import chalk from 'chalk';
 import { agentManager } from '../agents/agent-manager.js';
+import { PALETTE } from '../ui/tui-theme.js';
 
 export interface McpInfo {
   name: string;
@@ -49,27 +50,27 @@ export class McpStatusManager {
   public formatMcpStatusPanel(): string {
     const activeAgent = agentManager.getActiveAgent();
 
-    let body = `${chalk.bold.magenta('Active Persona:')} ${activeAgent.name} [${activeAgent.id}]\n\n`;
+    let body = `${chalk.bold.hex(PALETTE.goldYellow)('Active Persona:')} ${chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(` ${activeAgent.name} [${activeAgent.id}] `)}\n\n`;
 
     this.mcps.forEach(mcp => {
       const statusBadge = mcp.status === 'ONLINE' || mcp.status === 'ACTIVE'
-        ? chalk.bgGreen.black(` ${mcp.status} `)
-        : chalk.bgYellow.black(` ${mcp.status} `);
+        ? chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(` ${mcp.status} `)
+        : chalk.bold.bgHex(PALETTE.warmAmber).hex('#1A1A1A')(` ${mcp.status} `);
 
-      const typeBadge = mcp.type === 'MCP Server' ? chalk.bold.magenta(`[${mcp.type}]`) : chalk.bold.blue(`[${mcp.type}]`);
+      const typeBadge = mcp.type === 'MCP Server' ? chalk.bold.hex(PALETTE.warmAmber)(`[${mcp.type}]`) : chalk.bold.hex(PALETTE.forestLight)(`[${mcp.type}]`);
 
-      body += `${statusBadge} ${chalk.bold.yellow(mcp.name.padEnd(16))} ${typeBadge} ${chalk.white(mcp.description)}\n`;
+      body += `${statusBadge} ${chalk.bold.hex(PALETTE.goldYellow)(mcp.name.padEnd(16))} ${typeBadge} ${chalk.hex(PALETTE.creamSand)(mcp.description)}\n`;
     });
 
-    body += chalk.dim('\n✔ All 20 Gacor Vibe Coding MCP tools, Codebase Indexer, Offline Web RAG, Google Sheets API & Knowledge Graph skills are active & verified.');
+    body += chalk.hex(PALETTE.dimMuted)('\n✔ All 20 Gacor Vibe Coding MCP tools, Codebase Indexer, Offline Web RAG, Google Sheets API & Knowledge Graph skills are active & verified.');
 
     const title = '🔌 Agentyx MCPs & Swarm Tools Ecosystem Status Panel';
-    const top = chalk.bold.cyan('╔═') + chalk.bold.bgCyan.black(` ${title} `) + chalk.bold.cyan('═'.repeat(Math.max(0, 72 - title.length - 5)) + '╗\n');
-    const bottom = chalk.bold.cyan('╚' + '═'.repeat(72) + '╝\n');
+    const top = chalk.bold.hex(PALETTE.forestDark)('╔═') + chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(` ${title} `) + chalk.bold.hex(PALETTE.forestDark)('═'.repeat(Math.max(0, 72 - title.length - 5)) + '╗\n');
+    const bottom = chalk.bold.hex(PALETTE.forestDark)('╚' + '═'.repeat(72) + '╝\n');
 
     let out = '\n' + top;
     body.split('\n').forEach(line => {
-      out += chalk.bold.cyan('║ ') + line + '\n';
+      out += chalk.bold.hex(PALETTE.forestDark)('║ ') + line + '\n';
     });
     out += bottom;
     return out;

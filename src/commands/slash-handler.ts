@@ -1,7 +1,7 @@
 /**
  * @file slash-handler.ts
  * @description Central Slash Command Router and Interactive Menu for Agentyx CLI
- * @purpose Intercepts user slash inputs (/new, /init, /sessions, /remove-slop, /agents, /models, /mcp, /config, /help) and provides a rich TUI interactive command menu.
+ * @purpose Intercepts user slash inputs (/new, /init, /sessions, /remove-slop, /agents, /models, /mcp, /config, /update, /help) and provides a rich TUI interactive command menu using custom palette (#2C5745, #EBE3A7, #EB7D00, #FFCC4D, #FFFC8C).
  * @functions SlashHandler - Class with isSlashCommand, handleSlashCommand, promptInteractiveMenu, getHelpText methods
  */
 
@@ -16,6 +16,7 @@ import { configManager } from '../config/config-manager.js';
 import { mcpStatusManager } from '../utils/mcp-status.js';
 import { experienceStore } from '../database/experience-store.js';
 import { executeUpdateCommand } from './update.js';
+import { PALETTE } from '../ui/tui-theme.js';
 
 export interface SlashMenuItem {
   name: string;
@@ -47,16 +48,16 @@ export class SlashHandler {
    * Displays an interactive selectable TUI menu when '/' is pressed/entered alone
    */
   public async promptInteractiveMenu(): Promise<string> {
-    console.log(chalk.bold.cyan('\n╔══════════════════════════════════════════════════════════════════════════╗'));
-    console.log(chalk.bold.cyan('║') + chalk.bold.bgMagenta.white('    ✨ AGENTYX INTERACTIVE SLASH COMMAND MENU ✨                         ') + chalk.bold.cyan('║'));
-    console.log(chalk.bold.cyan('╚══════════════════════════════════════════════════════════════════════════╝\n'));
+    console.log(chalk.bold.hex(PALETTE.forestDark)('\n╔══════════════════════════════════════════════════════════════════════════╗'));
+    console.log(chalk.bold.hex(PALETTE.forestDark)('║') + chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)('    ✨ AGENTYX INTERACTIVE SLASH COMMAND MENU ✨                         ') + chalk.bold.hex(PALETTE.forestDark)('║'));
+    console.log(chalk.bold.hex(PALETTE.forestDark)('╚══════════════════════════════════════════════════════════════════════════╝\n'));
 
     try {
       const answers = await inquirer.prompt<{ chosenCommand: string }>([
         {
           type: 'list',
           name: 'chosenCommand',
-          message: chalk.bold.yellow('Pilih perintah slash yang ingin dieksekusi:'),
+          message: chalk.bold.hex(PALETTE.goldYellow)('Pilih perintah slash yang ingin dieksekusi:'),
           choices: SLASH_MENU_ITEMS.map(item => ({
             name: item.name,
             value: item.value
@@ -92,30 +93,30 @@ export class SlashHandler {
 
           if (subKey === 'url' || subKey === 'base_url') {
             configManager.updateConfig('NINEROUTER_BASE_URL', val);
-            return chalk.bold.green(`✔ 9router Base URL updated to: ${val}`);
+            return chalk.bold.hex(PALETTE.lemonLight)(`✔ 9router Base URL updated to: ${val}`);
           } else if (subKey === 'key' || subKey === 'api_key') {
             configManager.updateConfig('NINEROUTER_API_KEY', val);
-            return chalk.bold.green(`✔ 9router API Key updated successfully.`);
+            return chalk.bold.hex(PALETTE.lemonLight)(`✔ 9router API Key updated successfully.`);
           } else if (subKey === 'model' || subKey === 'combo') {
             configManager.updateConfig('DEFAULT_COMBO', val);
-            return chalk.bold.green(`✔ 9router Combo Model updated to: ${val}`);
+            return chalk.bold.hex(PALETTE.lemonLight)(`✔ 9router Combo Model updated to: ${val}`);
           }
         }
 
         const cfg = configManager.getConfig();
-        let out = chalk.bold.cyan('\n┌────────────────────────────────────────────────────────────────────────┐\n') +
-          chalk.bold.cyan('│ ') + chalk.bold.bgCyan.black(' ⚙️ 9ROUTER CONFIGURATION & CONNECTION SETTINGS ') + chalk.bold.cyan('                       │\n') +
-          chalk.bold.cyan('└────────────────────────────────────────────────────────────────────────┘\n\n');
+        let out = chalk.bold.hex(PALETTE.forestDark)('\n┌────────────────────────────────────────────────────────────────────────┐\n') +
+          chalk.bold.hex(PALETTE.forestDark)('│ ') + chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(' ⚙️ 9ROUTER CONFIGURATION & CONNECTION SETTINGS ') + chalk.bold.hex(PALETTE.forestDark)('                       │\n') +
+          chalk.bold.hex(PALETTE.forestDark)('└────────────────────────────────────────────────────────────────────────┘\n\n');
 
-        out += `  ${chalk.bold.yellow('Config File Path')} : ${chalk.dim(configManager.getAppDir() + '/config.json')}\n`;
-        out += `  ${chalk.bold.yellow('NINEROUTER_BASE_URL')} : ${chalk.green(cfg.NINEROUTER_BASE_URL)}\n`;
-        out += `  ${chalk.bold.yellow('NINEROUTER_API_KEY')}  : ${chalk.green(cfg.NINEROUTER_API_KEY ? '••••••••' + cfg.NINEROUTER_API_KEY.slice(-4) : '(not set)')}\n`;
-        out += `  ${chalk.bold.yellow('DEFAULT_COMBO')}      : ${chalk.green(cfg.DEFAULT_COMBO)}\n\n`;
+        out += `  ${chalk.bold.hex(PALETTE.goldYellow)('Config File Path')} : ${chalk.hex(PALETTE.dimMuted)(configManager.getAppDir() + '/config.json')}\n`;
+        out += `  ${chalk.bold.hex(PALETTE.goldYellow)('NINEROUTER_BASE_URL')} : ${chalk.hex(PALETTE.creamSand)(cfg.NINEROUTER_BASE_URL)}\n`;
+        out += `  ${chalk.bold.hex(PALETTE.goldYellow)('NINEROUTER_API_KEY')}  : ${chalk.hex(PALETTE.creamSand)(cfg.NINEROUTER_API_KEY ? '••••••••' + cfg.NINEROUTER_API_KEY.slice(-4) : '(not set)')}\n`;
+        out += `  ${chalk.bold.hex(PALETTE.goldYellow)('DEFAULT_COMBO')}      : ${chalk.bold.hex(PALETTE.lemonLight)(cfg.DEFAULT_COMBO)}\n\n`;
 
-        out += chalk.bold.yellow('💡 Untuk memperbarui pengaturan via CLI:\n');
-        out += `  • Set Base URL : ${chalk.cyan('/config url http://localhost:3000/v1')}\n`;
-        out += `  • Set API Key  : ${chalk.cyan('/config key sk-your-9router-api-key')}\n`;
-        out += `  • Set Model    : ${chalk.cyan('/config model default-combo')}\n`;
+        out += chalk.bold.hex(PALETTE.warmAmber)('💡 Untuk memperbarui pengaturan via CLI:\n');
+        out += `  • Set Base URL : ${chalk.hex(PALETTE.lemonLight)('/config url http://localhost:3000/v1')}\n`;
+        out += `  • Set API Key  : ${chalk.hex(PALETTE.lemonLight)('/config key sk-your-9router-api-key')}\n`;
+        out += `  • Set Model    : ${chalk.hex(PALETTE.lemonLight)('/config model default-combo')}\n`;
 
         return out;
       }
@@ -123,7 +124,7 @@ export class SlashHandler {
       case '/new': {
         const title = args.join(' ') || 'New Agentyx Session';
         const res = executeNewSessionCommand(title);
-        return chalk.bold.green(`✔ ${res.message}`);
+        return chalk.bold.hex(PALETTE.lemonLight)(`✔ ${res.message}`);
       }
 
       case '/init': {
@@ -143,7 +144,7 @@ export class SlashHandler {
         if (args.length > 0) {
           try {
             const role = agentManager.switchAgent(args.join(' '));
-            return chalk.bold.green(`✔ Active Swarm agent switched to: ${role.name} (${role.id})\n`) + chalk.dim(role.boundary);
+            return chalk.bold.hex(PALETTE.lemonLight)(`✔ Active Swarm agent switched to: ${role.name} (${role.id})\n`) + chalk.hex(PALETTE.creamSand)(role.boundary);
           } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             return chalk.red(`❌ ${msg}`);
@@ -151,16 +152,16 @@ export class SlashHandler {
         }
 
         const active = agentManager.getActiveAgent();
-        let out = chalk.bold.cyan('\n┌────────────────────────────────────────────────────────────────────────┐\n') +
-          chalk.bold.cyan('│ ') + chalk.bold.bgMagenta.white(' 🤖 AGENTYX SWARM ROLES & BOUNDARIES PANEL ') + chalk.bold.cyan('                          │\n') +
-          chalk.bold.cyan('└────────────────────────────────────────────────────────────────────────┘\n\n');
+        let out = chalk.bold.hex(PALETTE.forestDark)('\n┌────────────────────────────────────────────────────────────────────────┐\n') +
+          chalk.bold.hex(PALETTE.forestDark)('│ ') + chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(' 🤖 AGENTYX SWARM ROLES & BOUNDARIES PANEL ') + chalk.bold.hex(PALETTE.forestDark)('                          │\n') +
+          chalk.bold.hex(PALETTE.forestDark)('└────────────────────────────────────────────────────────────────────────┘\n\n');
 
         agentManager.getAvailableAgents().forEach(a => {
           const isActive = a.id === active.id;
-          const prefix = isActive ? chalk.bold.bgGreen.black(' ACTIVE ') + ' ' : '        ';
-          out += `${prefix}${chalk.bold.yellow(a.id.padEnd(18))} ${chalk.bold.white(a.name)}\n         ${chalk.dim(a.boundary)}\n\n`;
+          const prefix = isActive ? chalk.bold.bgHex(PALETTE.warmAmber).hex('#1A1A1A')(' ACTIVE ') + ' ' : '        ';
+          out += `${prefix}${chalk.bold.hex(PALETTE.goldYellow)(a.id.padEnd(18))} ${chalk.bold.hex(PALETTE.lemonLight)(a.name)}\n         ${chalk.hex(PALETTE.creamSand)(a.boundary)}\n\n`;
         });
-        out += chalk.bold.yellow('💡 Gunakan perintah: ') + chalk.cyan('/agents <agent-id>') + chalk.yellow(' untuk beralih persona.\n');
+        out += chalk.bold.hex(PALETTE.warmAmber)('💡 Gunakan perintah: ') + chalk.bold.hex(PALETTE.lemonLight)('/agents <agent-id>') + chalk.hex(PALETTE.warmAmber)(' untuk beralih persona.\n');
         return out;
       }
 
@@ -168,27 +169,27 @@ export class SlashHandler {
         if (args.length > 0) {
           const modelId = args[0];
           configManager.updateConfig('DEFAULT_COMBO', modelId);
-          return chalk.bold.green(`✔ Active 9router combo model updated to: ${modelId}`);
+          return chalk.bold.hex(PALETTE.lemonLight)(`✔ Active 9router combo model updated to: ${modelId}`);
         }
 
         try {
           const models = await nineRouterClient.listModels();
           const current = configManager.getConfig().DEFAULT_COMBO;
 
-          let out = chalk.bold.cyan('\n┌────────────────────────────────────────────────────────────────────────┐\n') +
-            chalk.bold.cyan('│ ') + chalk.bold.bgBlue.white(' 🧠 9ROUTER AVAILABLE COMBOS & MODELS PANEL ') + chalk.bold.cyan('                        │\n') +
-            chalk.bold.cyan('└────────────────────────────────────────────────────────────────────────┘\n\n');
+          let out = chalk.bold.hex(PALETTE.forestDark)('\n┌────────────────────────────────────────────────────────────────────────┐\n') +
+            chalk.bold.hex(PALETTE.forestDark)('│ ') + chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(' 🧠 9ROUTER AVAILABLE COMBOS & MODELS PANEL ') + chalk.bold.hex(PALETTE.forestDark)('                        │\n') +
+            chalk.bold.hex(PALETTE.forestDark)('└────────────────────────────────────────────────────────────────────────┘\n\n');
 
           models.forEach(m => {
             const isCurr = m.id === current;
-            const prefix = isCurr ? chalk.bold.bgGreen.black(' ACTIVE ') + ' ' : '        ';
-            out += `${prefix}${chalk.bold.yellow(m.id.padEnd(20))}${m.name ? ` - ${chalk.white(m.name)}` : ''}\n`;
+            const prefix = isCurr ? chalk.bold.bgHex(PALETTE.warmAmber).hex('#1A1A1A')(' ACTIVE ') + ' ' : '        ';
+            out += `${prefix}${chalk.bold.hex(PALETTE.goldYellow)(m.id.padEnd(20))}${m.name ? ` - ${chalk.hex(PALETTE.creamSand)(m.name)}` : ''}\n`;
           });
-          out += chalk.bold.yellow('\n💡 Gunakan perintah: ') + chalk.cyan('/models <combo-id>') + chalk.yellow(' untuk beralih model.\n');
+          out += chalk.bold.hex(PALETTE.warmAmber)('\n💡 Gunakan perintah: ') + chalk.bold.hex(PALETTE.lemonLight)('/models <combo-id>') + chalk.hex(PALETTE.warmAmber)(' untuk beralih model.\n');
           return out;
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          return chalk.red(`❌ Error listing models: ${msg}\n`) + chalk.yellow('Gunakan /config untuk memeriksa URL dan API Key 9router.');
+          return chalk.red(`❌ Error listing models: ${msg}\n`) + chalk.hex(PALETTE.warmAmber)('Gunakan /config untuk memeriksa URL dan API Key 9router.');
         }
       }
 
@@ -203,23 +204,23 @@ export class SlashHandler {
         const query = args.join(' ').trim();
         let records = query ? experienceStore.searchExperiences(query) : experienceStore.listRecentExperiences(5);
 
-        let out = chalk.bold.cyan('\n┌────────────────────────────────────────────────────────────────────────┐\n') +
-          chalk.bold.cyan('│ ') + chalk.bold.bgYellow.black(' 📚 HERMES EXPERIENCE BANK MEMORY PANEL ') + chalk.bold.cyan('                             │\n') +
-          chalk.bold.cyan('└────────────────────────────────────────────────────────────────────────┘\n\n');
+        let out = chalk.bold.hex(PALETTE.forestDark)('\n┌────────────────────────────────────────────────────────────────────────┐\n') +
+          chalk.bold.hex(PALETTE.forestDark)('│ ') + chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(' 📚 HERMES EXPERIENCE BANK MEMORY PANEL ') + chalk.bold.hex(PALETTE.forestDark)('                             │\n') +
+          chalk.bold.hex(PALETTE.forestDark)('└────────────────────────────────────────────────────────────────────────┘\n\n');
 
         if (records.length === 0) {
-          out += chalk.yellow(`  Tidak ada data pengalaman ditemukan${query ? ` untuk kueri: '${query}'` : ''}.\n\n`);
+          out += chalk.hex(PALETTE.creamSand)(`  Tidak ada data pengalaman ditemukan${query ? ` untuk kueri: '${query}'` : ''}.\n\n`);
         } else {
           records.forEach(r => {
-            out += chalk.bold.yellow(`📌 [${r.id}] `) + chalk.bold.white(r.trigger_pattern) + `\n`;
-            out += `   ${chalk.dim('Stack:')} ${chalk.green(r.environment_stack)} | ${chalk.dim('Category:')} ${chalk.cyan(r.category)}\n`;
+            out += chalk.bold.hex(PALETTE.goldYellow)(`📌 [${r.id}] `) + chalk.bold.hex(PALETTE.lemonLight)(r.trigger_pattern) + `\n`;
+            out += `   ${chalk.hex(PALETTE.dimMuted)('Stack:')} ${chalk.hex(PALETTE.creamSand)(r.environment_stack)} | ${chalk.hex(PALETTE.dimMuted)('Category:')} ${chalk.hex(PALETTE.warmAmber)(r.category)}\n`;
             if (r.root_cause) {
-              out += `   ${chalk.dim('Akar Masalah:')} ${r.root_cause}\n`;
+              out += `   ${chalk.hex(PALETTE.dimMuted)('Akar Masalah:')} ${chalk.hex(PALETTE.creamSand)(r.root_cause)}\n`;
             }
-            out += `   ${chalk.dim('Solusi:')} ${chalk.white(r.verified_solution.slice(0, 100))}${r.verified_solution.length > 100 ? '...' : ''}\n\n`;
+            out += `   ${chalk.hex(PALETTE.dimMuted)('Solusi:')} ${chalk.hex(PALETTE.creamSand)(r.verified_solution.slice(0, 100))}${r.verified_solution.length > 100 ? '...' : ''}\n\n`;
           });
         }
-        out += chalk.bold.yellow('💡 Gunakan perintah: ') + chalk.cyan('/experience <kata_kunci>') + chalk.yellow(' untuk mencari pengalaman spesifik.\n');
+        out += chalk.bold.hex(PALETTE.warmAmber)('💡 Gunakan perintah: ') + chalk.bold.hex(PALETTE.lemonLight)('/experience <kata_kunci>') + chalk.hex(PALETTE.warmAmber)(' untuk mencari pengalaman spesifik.\n');
         return out;
       }
 
@@ -246,22 +247,22 @@ export class SlashHandler {
   }
 
   public getHelpText(): string {
-    return chalk.bold.cyan('\n┌────────────────────────────────────────────────────────────────────────┐\n') +
-      chalk.bold.cyan('│ ') + chalk.bold.bgCyan.black(' 📌 AGENTYX INTERACTIVE SLASH COMMANDS REFERENCE ') + chalk.bold.cyan('                    │\n') +
-      chalk.bold.cyan('└────────────────────────────────────────────────────────────────────────┘\n\n') +
-      `  ${chalk.bold.yellow('/menu')} (atau '${chalk.bold.yellow('/')}')  - Tampilkan interactive select menu (panah keyboard)\n` +
-      `  ${chalk.bold.yellow('/config [url|key|model]')} - Kelola URL, API Key, atau Combo Model 9router\n` +
-      `  ${chalk.bold.yellow('/new [title]')}         - Inisialisasi sesi percakapan/kerja baru di SQLite\n` +
-      `  ${chalk.bold.yellow('/init')}                - Inisialisasi 4 file manifest wajib (workflow, footprint, agent, prompt)\n` +
-      `  ${chalk.bold.yellow('/sessions [id]')}       - Tampilkan atau beralih sesi tersimpan di SQLite\n` +
-      `  ${chalk.bold.yellow('/remove-slop')}         - Scan & bersihkan AI Slop (file temp & komentar redundan)\n` +
-      `  ${chalk.bold.yellow('/agents [role]')}       - Tampilkan atau pilih persona Swarm Agent\n` +
-      `  ${chalk.bold.yellow('/models [combo]')}      - Tampilkan atau pilih combo/model 9router\n` +
-      `  ${chalk.bold.yellow('/mcp')} (atau '${chalk.bold.yellow('/tools')}') - Tampilkan status active MCPs & Swarm tools\n` +
-      `  ${chalk.bold.yellow('/experience [query]')} - Cari atau tampilkan riwayat solusi di Hermes Experience Bank\n` +
-      `  ${chalk.bold.yellow('/update [force]')}      - Periksa & perbarui Agentyx ke versi terbaru secara in-place\n` +
-      `  ${chalk.bold.yellow('/help')}                - Tampilkan referensi bantuan ini\n` +
-      `  ${chalk.bold.yellow('/exit')}                - Keluar dari Agentyx CLI secara aman\n\n`;
+    return chalk.bold.hex(PALETTE.forestDark)('\n┌────────────────────────────────────────────────────────────────────────┐\n') +
+      chalk.bold.hex(PALETTE.forestDark)('│ ') + chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(' 📌 AGENTYX INTERACTIVE SLASH COMMANDS REFERENCE ') + chalk.bold.hex(PALETTE.forestDark)('                    │\n') +
+      chalk.bold.hex(PALETTE.forestDark)('└────────────────────────────────────────────────────────────────────────┘\n\n') +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/menu')} (atau '${chalk.bold.hex(PALETTE.goldYellow)('/')}')  - Tampilkan interactive select menu (panah keyboard)\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/config [url|key|model]')} - Kelola URL, API Key, atau Combo Model 9router\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/new [title]')}         - Inisialisasi sesi percakapan/kerja baru di SQLite\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/init')}                - Inisialisasi 4 file manifest wajib (workflow, footprint, agent, prompt)\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/sessions [id]')}       - Tampilkan atau beralih sesi tersimpan di SQLite\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/remove-slop')}         - Scan & bersihkan AI Slop (file temp & komentar redundan)\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/agents [role]')}       - Tampilkan atau pilih persona Swarm Agent\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/models [combo]')}      - Tampilkan atau pilih combo/model 9router\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/mcp')} (atau '${chalk.bold.hex(PALETTE.goldYellow)('/tools')}') - Tampilkan status active MCPs & Swarm tools\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/experience [query]')} - Cari atau tampilkan riwayat solusi di Hermes Experience Bank\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/update [force]')}      - Periksa & perbarui Agentyx ke versi terbaru secara in-place\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/help')}                - Tampilkan referensi bantuan ini\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/exit')}                - Keluar dari Agentyx CLI secara aman\n\n`;
   }
 }
 

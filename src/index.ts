@@ -21,7 +21,7 @@ import { nineRouterClient, ChatMessage } from './router/ninerouter-client.js';
 import { agentManager } from './agents/agent-manager.js';
 import { manifestManager } from './docs/manifest-manager.js';
 import { mcpStatusManager } from './utils/mcp-status.js';
-import { tuiTheme } from './ui/tui-theme.js';
+import { tuiTheme, PALETTE } from './ui/tui-theme.js';
 import { toolExecutor } from './tools/tool-executor.js';
 import { getAgentyxTools, parseToolCallsFromText, inferToolCallFromObject, ParsedToolCall } from './tools/tool-definitions.js';
 import { jsonSanitizer } from './sanitizer/json-sanitizer.js';
@@ -147,14 +147,14 @@ async function startInteractiveRepl(): Promise<void> {
       try {
         readline.moveCursor(process.stdout, 0, -Math.min(lineCount, 30));
         readline.clearScreenDown(process.stdout);
-        console.log(chalk.cyan.bold(`\n[📋 ~pasted ${lineCount} lines~]\n`));
+        console.log(chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(`\n [📋 ~pasted ${lineCount} lines~] \n`));
       } catch {
-        console.log(chalk.cyan.bold(`\n[📋 ~pasted ${lineCount} lines~]\n`));
+        console.log(chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(`\n [📋 ~pasted ${lineCount} lines~] \n`));
       }
     }
 
     if (trimmed.toLowerCase() === 'exit' || trimmed.toLowerCase() === 'quit' || trimmed.toLowerCase() === '/exit') {
-      console.log(chalk.bold.yellow('\nGoodbye! Session saved in SQLite Second Brain.'));
+      console.log(chalk.bold.hex(PALETTE.warmAmber)('\nGoodbye! Session saved in SQLite Second Brain.'));
       dbDriver.close();
       rl.close();
       process.exit(0);
@@ -167,7 +167,7 @@ async function startInteractiveRepl(): Promise<void> {
       try {
         const output = await slashHandler.handleSlashCommand(trimmed);
         if (output === '__EXIT__') {
-          console.log(chalk.bold.yellow('\nGoodbye! Session saved in SQLite Second Brain.'));
+          console.log(chalk.bold.hex(PALETTE.warmAmber)('\nGoodbye! Session saved in SQLite Second Brain.'));
           dbDriver.close();
           rl.close();
           process.exit(0);
@@ -212,14 +212,14 @@ async function startInteractiveRepl(): Promise<void> {
 
     while (turnCount < maxTurns) {
       turnCount++;
-      const spinner = ora(chalk.bold.cyan(`Thinking as ${activeAgent.name} (Step ${turnCount})...`)).start();
+      const spinner = ora(chalk.bold.hex(PALETTE.goldYellow)(`Thinking as ${activeAgent.name} (Step ${turnCount})...`)).start();
 
       try {
         const response = await nineRouterClient.sendChatCompletion(
           apiMessages,
           cfg.DEFAULT_COMBO,
           (thoughtChunk) => {
-            spinner.text = chalk.dim(`Thinking: ${thoughtChunk.slice(0, 50)}...`);
+            spinner.text = chalk.hex(PALETTE.dimMuted)(`Thinking: ${thoughtChunk.slice(0, 50)}...`);
           },
           undefined,
           tools
@@ -229,7 +229,7 @@ async function startInteractiveRepl(): Promise<void> {
 
         // Display Thinking in dimmed / collapsed format if present
         if (response.thought) {
-          console.log(chalk.dim.italic(`\n💭 [Reasoning Thought]:\n${response.thought}\n`));
+          console.log(chalk.hex(PALETTE.dimMuted).italic(`\n💭 [Reasoning Thought]:\n${response.thought}\n`));
         }
 
         // Check for tool calls (OpenAI function calling or fallback JSON text parsing)
@@ -258,26 +258,26 @@ async function startInteractiveRepl(): Promise<void> {
 
         if (callsToExecute.length > 0) {
           if (response.content) {
-            console.log(chalk.bold.green(`\n🤖 ${activeAgent.name}:\n${response.content}\n`));
+            console.log(chalk.bold.hex(PALETTE.lemonLight)(`\n🤖 ${activeAgent.name}:\n`) + chalk.hex(PALETTE.creamSand)(response.content + '\n'));
             apiMessages.push({ role: 'assistant', content: response.content });
           }
 
           for (const call of callsToExecute) {
-            console.log(chalk.bold.yellow(`\n⚡ [Tool Call: ${call.name}]`));
+            console.log(chalk.bold.hex(PALETTE.warmAmber)(`\n⚡ [Tool Call: ${call.name}]`));
             if (call.arguments.command) {
-              console.log(chalk.cyan(`$ ${call.arguments.command}`));
+              console.log(chalk.hex(PALETTE.lemonLight)(`$ ${call.arguments.command}`));
             } else if (call.arguments.path) {
-              console.log(chalk.cyan(`📄 ${call.arguments.path}`));
+              console.log(chalk.hex(PALETTE.creamSand)(`📄 ${call.arguments.path}`));
             } else if (call.arguments.query) {
-              console.log(chalk.cyan(`🔍 ${call.arguments.query}`));
+              console.log(chalk.hex(PALETTE.creamSand)(`🔍 ${call.arguments.query}`));
             }
 
-            const execSpinner = ora(chalk.bold.yellow(`Executing ${call.name}...`)).start();
+            const execSpinner = ora(chalk.bold.hex(PALETTE.goldYellow)(`Executing ${call.name}...`)).start();
             const result = await toolExecutor.executeTool(call.name, call.arguments);
             execSpinner.stop();
 
-            const statusIcon = result.success ? chalk.green('✔') : chalk.red('❌');
-            console.log(`${statusIcon} ${chalk.bold('Execution Output')}:\n${chalk.dim(result.output)}\n`);
+            const statusIcon = result.success ? chalk.bold.hex(PALETTE.forestLight)('✔') : chalk.red('❌');
+            console.log(`${statusIcon} ${chalk.bold.hex(PALETTE.goldYellow)('Execution Output')}:\n${chalk.hex(PALETTE.creamSand)(result.output)}\n`);
 
             let toolResultText = `[Tool Execution Result for ${call.name}]:\nStatus: ${result.success ? 'Success' : 'Error'}\nOutput:\n${result.output}`;
 
@@ -297,8 +297,8 @@ async function startInteractiveRepl(): Promise<void> {
         }
 
         // Final answer from model without further tool calls
-        console.log(chalk.bold.green(`\n🤖 ${activeAgent.name}:\n`));
-        console.log(response.content + '\n');
+        console.log(chalk.bold.hex(PALETTE.lemonLight)(`\n🤖 ${activeAgent.name}:\n`));
+        console.log(chalk.hex(PALETTE.creamSand)(response.content + '\n'));
 
         // Record assistant message & thought in SQLite
         sessionStore.addMessage(currentSessionId!, 'assistant', response.content, response.thought);
