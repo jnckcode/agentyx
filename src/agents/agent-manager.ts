@@ -11,6 +11,7 @@ import { prometheusAgent } from './prometheus.js';
 import { sisyphusAgent } from './sisyphus.js';
 import { heptaseusAgent } from './heptaseus.js';
 import { hermesAgent } from './hermes.js';
+import { argosAgent } from './argos.js';
 import { fullTeamAgent } from './full-team.js';
 
 export interface AgentRole {
@@ -69,6 +70,13 @@ export const AGENT_ROLES: AgentRole[] = [
     description: 'Researcher, MCP Specialist & Experience Memory Engine',
     boundary: 'Fetches technical docs, Context7 search, MCP execution, manages & retrieves Experience Bank memory in SQLite (~/.agentyx/memory.db), sanitizes data streams. DOES NOT write main production code.',
     systemInstruction: buildSystemPromptWithReasoning(hermesAgent.generateHermesSystemPrompt())
+  },
+  {
+    id: '.argos',
+    name: 'Argos (Security & Bug Sentinel)',
+    description: 'Web Security Auditor, Deep Bug Hunter & Engine Self-Healing Diagnostician',
+    boundary: 'Audits web security (OWASP Top 10, secrets, CVEs), conducts deep bug research, autonomously diagnoses & hot-patches Agentyx engine runtime issues (src/ -> npm run build) without waiting for developer releases, and hands off target project plans to .prometheus.',
+    systemInstruction: buildSystemPromptWithReasoning(argosAgent.generateArgosSystemPrompt())
   },
   {
     id: 'Full-Team Coding',

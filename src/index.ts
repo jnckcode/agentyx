@@ -30,7 +30,7 @@ const program = new Command();
 program
   .name('agentyx')
   .description('Platform Agentic AI CLI Global with 9router integration, SQLite Second Brain, and Reasoning Mitigation')
-  .version('3.2.3')
+  .version('3.4.0')
   .option('-i, --init', 'Initialize mandatory 4 manifest documentation bundle in current workspace')
   .option('-s, --remove-slop', 'Scan & clean AI slop from active workspace')
   .option('-l, --sessions', 'List saved sessions in SQLite Second Brain')
