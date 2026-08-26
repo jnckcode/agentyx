@@ -9,14 +9,14 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { executeInitCommand } from './init.js';
 import { executeRemoveSlopCommand } from './remove-slop.js';
-import { executeSessionsCommand, executeNewSessionCommand } from './sessions.js';
+import { executeSessionsCommand, executeSessionsInteractive, executeNewSessionCommand } from './sessions.js';
 import { agentManager } from '../agents/agent-manager.js';
 import { nineRouterClient } from '../router/ninerouter-client.js';
 import { configManager } from '../config/config-manager.js';
 import { mcpStatusManager } from '../utils/mcp-status.js';
 import { experienceStore } from '../database/experience-store.js';
 import { executeUpdateCommand } from './update.js';
-import { PALETTE } from '../ui/tui-theme.js';
+import { PALETTE, tuiTheme } from '../ui/tui-theme.js';
 
 export interface SlashMenuItem {
   name: string;
@@ -34,6 +34,7 @@ export const SLASH_MENU_ITEMS: SlashMenuItem[] = [
   { name: '🧠 /models       - Tampilkan & pilih 9router combo model', value: '/models', description: 'Switch model' },
   { name: '🔌 /mcp          - Tampilkan status active MCPs & Swarm tools', value: '/mcp', description: 'Check MCP status' },
   { name: '📚 /experience   - Cari & tampilkan riwayat solusi di Hermes Experience Bank', value: '/experience', description: 'View experience memory' },
+  { name: '✨ /clear        - Bersihkan layar TUI (Agentic Realm Screen Reset)', value: '/clear', description: 'Clear screen' },
   { name: '🚀 /update       - Periksa & perbarui Agentyx ke versi terbaru (in-place)', value: '/update', description: 'Update Agentyx in-place' },
   { name: '❓ /help         - Tampilkan bantuan dan daftar perintah', value: '/help', description: 'Display help' },
   { name: '🚪 /exit         - Keluar dari Agentyx CLI secara aman', value: '/exit', description: 'Exit CLI' }
@@ -69,6 +70,11 @@ export class SlashHandler {
     } catch {
       return this.getHelpText();
     } finally {
+      if (process.stdin.isTTY && typeof process.stdin.setRawMode === 'function') {
+        try {
+          process.stdin.setRawMode(true);
+        } catch {}
+      }
       process.stdin.resume();
     }
   }
@@ -131,9 +137,13 @@ export class SlashHandler {
         return executeInitCommand(process.cwd());
       }
 
-      case '/sessions': {
+      case '/sessions':
+      case '/session': {
         const switchId = args[0];
-        return executeSessionsCommand(switchId);
+        if (switchId) {
+          return executeSessionsCommand(switchId);
+        }
+        return await executeSessionsInteractive();
       }
 
       case '/remove-slop': {
@@ -224,6 +234,12 @@ export class SlashHandler {
         return out;
       }
 
+      case '/clear':
+      case '/cls': {
+        tuiTheme.renderHeaderBanner();
+        return '';
+      }
+
       case '/update':
       case '/upgrade': {
         const force = args.includes('force') || args.includes('-f') || args.includes('--force');
@@ -260,6 +276,7 @@ export class SlashHandler {
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/models [combo]')}      - Tampilkan atau pilih combo/model 9router\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/mcp')} (atau '${chalk.bold.hex(PALETTE.goldYellow)('/tools')}') - Tampilkan status active MCPs & Swarm tools\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/experience [query]')} - Cari atau tampilkan riwayat solusi di Hermes Experience Bank\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/clear')} (atau '${chalk.bold.hex(PALETTE.goldYellow)('/cls')}') - Bersihkan layar TUI & reset realm view\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/update [force]')}      - Periksa & perbarui Agentyx ke versi terbaru secara in-place\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/help')}                - Tampilkan referensi bantuan ini\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/exit')}                - Keluar dari Agentyx CLI secara aman\n\n`;

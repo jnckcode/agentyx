@@ -1,6 +1,6 @@
 /**
  * @file index.ts
- * @description Main entry point for Agentyx AI Agentic CLI Platform (Version 3.2.3)
+ * @description Main entry point for Agentyx AI Agentic CLI Platform (Version 3.5.0)
  * @purpose Bootstraps REPL shell, Commander CLI options, 9router integration, SQLite Second Brain, TUI Box aesthetics, Multi-Turn Agent Loop, and OpenCode-Style [~pasted xx lines~] UI.
  * @functions startInteractiveRepl, processInput, main - Main CLI execution loop, paste debouncer, and slash command processor.
  */
@@ -91,22 +91,22 @@ async function runCliOptions(): Promise<boolean> {
 }
 
 async function startInteractiveRepl(): Promise<void> {
+  tuiTheme.enterAlternateScreen();
   tuiTheme.renderHeaderBanner();
 
   let cfg = configManager.getConfig();
   let currentSessionId = cfg.ACTIVE_SESSION_ID;
 
   if (!currentSessionId || !sessionStore.getSessionById(currentSessionId)) {
-    const { session } = executeNewSessionCommand('Default Agentyx Session');
-    currentSessionId = session.id;
+    const existingSessions = sessionStore.listSessions();
+    if (existingSessions.length > 0) {
+      currentSessionId = existingSessions[0].id;
+      configManager.updateConfig('ACTIVE_SESSION_ID', currentSessionId);
+    } else {
+      const { session } = executeNewSessionCommand('Default Agentyx Session');
+      currentSessionId = session.id;
+    }
   }
-
-  process.on('uncaughtException', (err) => {
-    console.error(chalk.red('\n❌ Uncaught Exception:'), err);
-  });
-  process.on('unhandledRejection', (reason) => {
-    console.error(chalk.red('\n❌ Unhandled Rejection:'), reason);
-  });
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -116,12 +116,61 @@ async function startInteractiveRepl(): Promise<void> {
     historySize: 100
   });
 
-  rl.prompt();
+  const cleanupAndExit = (code: number = 0, message?: string) => {
+    tuiTheme.leaveAlternateScreen();
+    if (message) {
+      console.log(message);
+    }
+    dbDriver.close();
+    try {
+      rl.close();
+    } catch {
+      // ignore
+    }
+    process.exit(code);
+  };
+
+  process.on('SIGTERM', () => {
+    cleanupAndExit(0);
+  });
+
+  process.on('exit', () => {
+    tuiTheme.leaveAlternateScreen();
+  });
+
+  process.on('uncaughtException', (err) => {
+    tuiTheme.leaveAlternateScreen();
+    console.error(chalk.red('\n❌ Uncaught Exception:'), err);
+    process.exit(1);
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    tuiTheme.leaveAlternateScreen();
+    console.error(chalk.red('\n❌ Unhandled Rejection:'), reason);
+    process.exit(1);
+  });
+
+  const promptUser = () => {
+    if (process.stdin.isTTY && typeof process.stdin.setRawMode === 'function') {
+      try {
+        process.stdin.setRawMode(true);
+      } catch {}
+    }
+    if (process.stdin.isPaused()) {
+      try {
+        process.stdin.resume();
+      } catch {}
+    }
+    rl.resume();
+    rl.setPrompt(tuiTheme.getRichPromptBadge());
+    rl.prompt();
+  };
+
+  promptUser();
 
   rl.on('SIGINT', () => {
     console.log(chalk.bold.yellow('\n⚠️ Gunakan perintah /exit atau ketik "exit" untuk keluar dari Agentyx.'));
-    process.stdin.resume();
-    rl.prompt();
+    promptUser();
   });
 
   // Smart Multiline Paste Buffer Collector & OpenCode-Style Renderer
@@ -131,13 +180,15 @@ async function startInteractiveRepl(): Promise<void> {
   const processInput = async (input: string, lineCount: number = 1) => {
     rl.pause(); // Pause readline interface immediately during processing to prevent duplicate prompt rendering
 
-    // Strip any orphaned ANSI escape control codes (like \x1b[D, \x1b[C from raw arrow keys)
-    const sanitizedInput = (input || '').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
+    // Comprehensive ANSI Escape Sequence & Control Code cleaner (ECMA-48 / ANSI / SS3 / CSI / OSC)
+    const ANSI_REGEX = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]|(?:\x1b[O\\[][A-Za-z0-9])/g;
+    const sanitizedInput = (input || '')
+      .replace(ANSI_REGEX, '')
+      .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
+      .trim();
 
     if (!sanitizedInput) {
-      rl.resume();
-      rl.setPrompt(tuiTheme.getRichPromptBadge());
-      rl.prompt();
+      promptUser();
       return;
     }
 
@@ -155,10 +206,7 @@ async function startInteractiveRepl(): Promise<void> {
     }
 
     if (trimmed.toLowerCase() === 'exit' || trimmed.toLowerCase() === 'quit' || trimmed.toLowerCase() === '/exit') {
-      console.log(chalk.bold.hex(PALETTE.warmAmber)('\nGoodbye! Session saved in SQLite Second Brain.'));
-      dbDriver.close();
-      rl.close();
-      process.exit(0);
+      cleanupAndExit(0, chalk.bold.hex(PALETTE.warmAmber)('\nGoodbye! Session saved in SQLite Second Brain.'));
       return;
     }
 
@@ -168,23 +216,20 @@ async function startInteractiveRepl(): Promise<void> {
       try {
         const output = await slashHandler.handleSlashCommand(trimmed);
         if (output === '__EXIT__') {
-          console.log(chalk.bold.hex(PALETTE.warmAmber)('\nGoodbye! Session saved in SQLite Second Brain.'));
-          dbDriver.close();
-          rl.close();
-          process.exit(0);
+          cleanupAndExit(0, chalk.bold.hex(PALETTE.warmAmber)('\nGoodbye! Session saved in SQLite Second Brain.'));
           return;
         }
         if (output) {
           console.log(output);
         }
+        // Resync currentSessionId in case /sessions or /new switched the session
+        cfg = configManager.getConfig();
+        currentSessionId = cfg.ACTIVE_SESSION_ID || currentSessionId;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         console.log(chalk.red(`❌ Error executing slash command: ${msg}`));
       } finally {
-        process.stdin.resume();
-        rl.resume();
-        rl.setPrompt(tuiTheme.getRichPromptBadge());
-        rl.prompt();
+        promptUser();
       }
       return;
     }
@@ -192,6 +237,16 @@ async function startInteractiveRepl(): Promise<void> {
     // Handle standard user prompt (including multiline error logs)
     const activeAgent = agentManager.getActiveAgent();
     cfg = configManager.getConfig();
+    currentSessionId = cfg.ACTIVE_SESSION_ID || currentSessionId;
+
+    // Auto-name session on first prompt if still using default generic title
+    const currentSession = sessionStore.getSessionById(currentSessionId!);
+    if (currentSession && (currentSession.title === 'Default Agentyx Session' || currentSession.title === 'New Agentyx Session' || currentSession.title.startsWith('New Agentyx Session'))) {
+      const autoTitle = trimmed.slice(0, 45).replace(/[\r\n\t]+/g, ' ').trim();
+      if (autoTitle.length > 2) {
+        sessionStore.updateSessionTitle(currentSessionId!, autoTitle);
+      }
+    }
 
     // 1. Record user message in SQLite
     sessionStore.addMessage(currentSessionId!, 'user', trimmed);
@@ -201,7 +256,7 @@ async function startInteractiveRepl(): Promise<void> {
     const manifests = manifestManager.readAllManifests();
     const systemInstruction = `${activeAgent.systemInstruction}\n\nProject Context:\nWorkflow: ${manifests.workflow.slice(0, 500)}\nAgent State: ${manifests.agent.slice(0, 300)}\n\n======================================================================\nSTRICT AGENTIC OPERATIONAL MANDATE (HARDENED):\nYou are an Autonomous Agentic AI system operating directly in the user's terminal environment.\nYOU HAVE ACTIVE NATIVE TOOLS: \`terminal\` (executes shell commands), \`write_file\` (creates/edits files), \`read_file\`, \`list_dir\`, \`grep_search\`, \`web_search\`, and \`web_fetch\`.\n\nCRITICAL RULES:\n1. NEVER output code snippets, file contents, or shell commands as plain text or markdown code blocks for the user to copy-paste manually.\n2. WHENEVER you need to create or modify a file, YOU MUST IMMEDIATELY ISSUE A \`write_file\` TOOL CALL.\n3. WHENEVER you need to run bash/sh commands, builds, package installations, or directory changes, YOU MUST IMMEDIATELY ISSUE A \`terminal\` TOOL CALL.\n4. WHENEVER you need to inspect code or logs, YOU MUST IMMEDIATELY ISSUE A \`read_file\` OR \`grep_search\` TOOL CALL.\n5. DO NOT ask the user to copy-paste commands or perform file edits manually. EXECUTE EVERYTHING AUTONOMOUSLY VIA TOOL CALLS!\n6. ALWAYS TAG COMMANDS: If outputting shell commands, ALWAYS enclose them in tagged \`\`\`bash codeblocks or tool calls. AGENTYX WILL AUTOMATICALLY INTERCEPT AND RUN THEM AUTONOMOUSLY!\n\nAUTONOMOUS ERROR LOG DIRECTIVE: If a terminal command or build fails or its output references an error log file (e.g. 'See log file at...', '.log', '.txt', 'npm-debug.log'), YOU MUST IMMEDIATELY CALL \`read_file\` ON THAT LOG FILE in the next turn to inspect the exact error root cause. DO NOT abort or conclude your task without reading the referenced log file!\n======================================================================`;
 
-    const historyMessages = sessionStore.getSessionMessages(currentSessionId!);
+    const historyMessages = sessionStore.getRecentMessages(currentSessionId!, 35);
     const apiMessages: ChatMessage[] = [
       { role: 'system' as const, content: systemInstruction },
       ...historyMessages.map(m => ({ role: m.role as 'user' | 'assistant' | 'system' | 'tool', content: m.content }))
@@ -314,9 +369,7 @@ async function startInteractiveRepl(): Promise<void> {
       }
     }
 
-    process.stdin.resume();
-    rl.setPrompt(tuiTheme.getRichPromptBadge());
-    rl.prompt();
+    promptUser();
   };
 
   rl.on('line', (line: string) => {
@@ -337,8 +390,7 @@ async function startInteractiveRepl(): Promise<void> {
   });
 
   rl.on('close', () => {
-    dbDriver.close();
-    process.exit(0);
+    cleanupAndExit(0);
   });
 }
 

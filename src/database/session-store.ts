@@ -65,9 +65,23 @@ export class SessionStore {
     stmt.run(model, id);
   }
 
+  public updateSessionTitle(id: string, title: string): void {
+    const stmt = this.db.prepare(`
+      UPDATE sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `);
+    stmt.run(title, id);
+  }
+
   public deleteSession(id: string): void {
+    this.db.prepare('DELETE FROM messages WHERE session_id = ?').run(id);
     const stmt = this.db.prepare('DELETE FROM sessions WHERE id = ?');
     stmt.run(id);
+  }
+
+  public getMessageCount(sessionId: string): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM messages WHERE session_id = ?');
+    const result = stmt.get(sessionId) as { count: number } | undefined;
+    return result?.count || 0;
   }
 
   public addMessage(
@@ -104,6 +118,16 @@ export class SessionStore {
   public getSessionMessages(sessionId: string): MessageRecord[] {
     const stmt = this.db.prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp ASC');
     return stmt.all(sessionId) as MessageRecord[];
+  }
+
+  public getRecentMessages(sessionId: string, limit: number = 40): MessageRecord[] {
+    // Fetch latest N messages in ascending order
+    const stmt = this.db.prepare(`
+      SELECT * FROM (
+        SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp DESC LIMIT ?
+      ) ORDER BY timestamp ASC
+    `);
+    return stmt.all(sessionId, limit) as MessageRecord[];
   }
 }
 

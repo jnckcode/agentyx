@@ -55,10 +55,41 @@ export class TuiTheme {
   }
 
   /**
+   * Enters DEC Alternate Screen Buffer (\x1b[?1049h) - isolating Agentyx into its own realm/dimension,
+   * resets cursor keys mode to normal (\x1b[?1l), resets numeric keypad (\x1b>), and ensures cursor is visible (\x1b[?25h).
+   */
+  public enterAlternateScreen(): void {
+    if (process.stdout.isTTY) {
+      process.stdout.write('\x1b[?1049h\x1b[?1l\x1b>\x1b[2J\x1b[3J\x1b[H\x1b[?25h');
+    }
+  }
+
+  /**
+   * Leaves Alternate Screen Buffer (\x1b[?1049l) and restores cursor (\x1b[?25h),
+   * cleanly restoring user's original terminal screen upon exit.
+   */
+  public leaveAlternateScreen(): void {
+    if (process.stdout.isTTY) {
+      process.stdout.write('\x1b[?1049l\x1b[?1l\x1b>\x1b[?25h');
+    }
+  }
+
+  /**
+   * Clears screen & scrollback buffer in the current realm
+   */
+  public clearScreen(): void {
+    if (process.stdout.isTTY) {
+      process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
+    } else {
+      console.clear();
+    }
+  }
+
+  /**
    * Renders main Agentyx CLI Banner with harmonious custom theme (#2C5745, #EBE3A7, #EB7D00, #FFCC4D, #FFFC8C)
    */
   public renderHeaderBanner(): void {
-    console.clear();
+    this.clearScreen();
 
     const top = chalk.bold.hex(PALETTE.forestDark)('╔' + '═'.repeat(this.width - 2) + '╗');
     const bottom = chalk.bold.hex(PALETTE.forestDark)('╚' + '═'.repeat(this.width - 2) + '╝');
