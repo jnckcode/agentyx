@@ -15,6 +15,7 @@ import { nineRouterClient } from '../router/ninerouter-client.js';
 import { configManager } from '../config/config-manager.js';
 import { mcpStatusManager } from '../utils/mcp-status.js';
 import { experienceStore } from '../database/experience-store.js';
+import { executeUpdateCommand } from './update.js';
 
 export interface SlashMenuItem {
   name: string;
@@ -32,6 +33,7 @@ export const SLASH_MENU_ITEMS: SlashMenuItem[] = [
   { name: '🧠 /models       - Tampilkan & pilih 9router combo model', value: '/models', description: 'Switch model' },
   { name: '🔌 /mcp          - Tampilkan status active MCPs & Swarm tools', value: '/mcp', description: 'Check MCP status' },
   { name: '📚 /experience   - Cari & tampilkan riwayat solusi di Hermes Experience Bank', value: '/experience', description: 'View experience memory' },
+  { name: '🚀 /update       - Periksa & perbarui Agentyx ke versi terbaru (in-place)', value: '/update', description: 'Update Agentyx in-place' },
   { name: '❓ /help         - Tampilkan bantuan dan daftar perintah', value: '/help', description: 'Display help' },
   { name: '🚪 /exit         - Keluar dari Agentyx CLI secara aman', value: '/exit', description: 'Exit CLI' }
 ];
@@ -221,6 +223,12 @@ export class SlashHandler {
         return out;
       }
 
+      case '/update':
+      case '/upgrade': {
+        const force = args.includes('force') || args.includes('-f') || args.includes('--force');
+        return executeUpdateCommand(force);
+      }
+
       case '/exit':
       case '/quit':
       case 'exit':
@@ -251,6 +259,7 @@ export class SlashHandler {
       `  ${chalk.bold.yellow('/models [combo]')}      - Tampilkan atau pilih combo/model 9router\n` +
       `  ${chalk.bold.yellow('/mcp')} (atau '${chalk.bold.yellow('/tools')}') - Tampilkan status active MCPs & Swarm tools\n` +
       `  ${chalk.bold.yellow('/experience [query]')} - Cari atau tampilkan riwayat solusi di Hermes Experience Bank\n` +
+      `  ${chalk.bold.yellow('/update [force]')}      - Periksa & perbarui Agentyx ke versi terbaru secara in-place\n` +
       `  ${chalk.bold.yellow('/help')}                - Tampilkan referensi bantuan ini\n` +
       `  ${chalk.bold.yellow('/exit')}                - Keluar dari Agentyx CLI secara aman\n\n`;
   }

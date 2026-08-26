@@ -16,6 +16,7 @@ import { slashHandler } from './commands/slash-handler.js';
 import { executeInitCommand } from './commands/init.js';
 import { executeRemoveSlopCommand } from './commands/remove-slop.js';
 import { executeSessionsCommand, executeNewSessionCommand } from './commands/sessions.js';
+import { executeUpdateCommand } from './commands/update.js';
 import { nineRouterClient, ChatMessage } from './router/ninerouter-client.js';
 import { agentManager } from './agents/agent-manager.js';
 import { manifestManager } from './docs/manifest-manager.js';
@@ -30,13 +31,14 @@ const program = new Command();
 program
   .name('agentyx')
   .description('Platform Agentic AI CLI Global with 9router integration, SQLite Second Brain, and Reasoning Mitigation')
-  .version('3.4.0')
+  .version('3.4.1')
   .option('-i, --init', 'Initialize mandatory 4 manifest documentation bundle in current workspace')
   .option('-s, --remove-slop', 'Scan & clean AI slop from active workspace')
   .option('-l, --sessions', 'List saved sessions in SQLite Second Brain')
   .option('-a, --agent <role>', 'Switch active Swarm agent persona')
   .option('-m, --model <combo>', 'Switch active 9router combo model')
-  .option('-p, --mcp', 'Display active MCPs and Swarm tools status');
+  .option('-p, --mcp', 'Display active MCPs and Swarm tools status')
+  .option('-u, --update', 'Check and update Agentyx to latest version in-place');
 
 program.parse(process.argv);
 const options = program.opts();
@@ -76,6 +78,11 @@ async function runCliOptions(): Promise<boolean> {
 
   if (options.mcp) {
     console.log(mcpStatusManager.formatMcpStatusPanel());
+    return true;
+  }
+
+  if (options.update) {
+    console.log(await executeUpdateCommand(false));
     return true;
   }
 
