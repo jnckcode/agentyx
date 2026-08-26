@@ -25,13 +25,14 @@ import { tuiTheme, PALETTE } from './ui/tui-theme.js';
 import { toolExecutor } from './tools/tool-executor.js';
 import { getAgentyxTools, parseToolCallsFromText, inferToolCallFromObject, ParsedToolCall } from './tools/tool-definitions.js';
 import { jsonSanitizer } from './sanitizer/json-sanitizer.js';
+import { getAppVersion } from './utils/version.js';
 
 const program = new Command();
 
 program
   .name('agentyx')
   .description('Platform Agentic AI CLI Global with 9router integration, SQLite Second Brain, and Reasoning Mitigation')
-  .version('3.4.1')
+  .version(getAppVersion())
   .option('-i, --init', 'Initialize mandatory 4 manifest documentation bundle in current workspace')
   .option('-s, --remove-slop', 'Scan & clean AI slop from active workspace')
   .option('-l, --sessions', 'List saved sessions in SQLite Second Brain')

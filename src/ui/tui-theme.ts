@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import { configManager } from '../config/config-manager.js';
 import { agentManager } from '../agents/agent-manager.js';
 import { workspaceDiscoveryEngine } from '../utils/workspace-discovery.js';
+import { getAppVersion } from '../utils/version.js';
 
 export const PALETTE = {
   forestDark: '#2C5745',
@@ -75,7 +76,7 @@ export class TuiTheme {
     titleAscii.forEach(l => console.log(this.center(l)));
     console.log(this.line('═', '╠', '╣'));
 
-    console.log(this.center(chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)('   ✨ UNIVERSAL AGENTIC AI CLI PLATFORM v3.4.1 ✨   ')));
+    console.log(this.center(chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(`   ✨ UNIVERSAL AGENTIC AI CLI PLATFORM v${getAppVersion()} ✨   `)));
     console.log(this.center(chalk.hex(PALETTE.creamSand)('SQLite Second Brain • 9router Engine • Swarm Dynamics • MCP Suite')));
     console.log(this.line('─', '╟', '╢'));
 

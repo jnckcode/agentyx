@@ -14,6 +14,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { manifestManager } from '../docs/manifest-manager.js';
 import { PALETTE } from '../ui/tui-theme.js';
+import { getAppVersion } from '../utils/version.js';
 
 const execAsync = promisify(exec);
 
@@ -21,16 +22,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export function getCurrentVersion(): string {
-  try {
-    const pkgPath = path.resolve(__dirname, '../../package.json');
-    if (fs.existsSync(pkgPath)) {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-      return pkg.version || '3.4.1';
-    }
-  } catch {
-    // Fallback default
-  }
-  return '3.4.1';
+  return getAppVersion();
 }
 
 export async function checkLatestVersion(): Promise<string | null> {
