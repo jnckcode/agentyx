@@ -1,7 +1,7 @@
 /**
  * @file slash-handler.ts
  * @description Central Slash Command Router and Interactive Menu for Agentyx CLI
- * @purpose Intercepts user slash inputs (/new, /init, /sessions, /remove-slop, /agents, /models, /mcp, /config, /update, /help) and provides a rich TUI interactive command menu using custom palette (#2C5745, #EBE3A7, #EB7D00, #FFCC4D, #FFFC8C).
+ * @purpose Intercepts user slash inputs (/new, /init, /sessions, /view, /scroll, /history, /remove-slop, /agents, /models, /mcp, /config, /update, /help) and provides a rich TUI interactive command menu using custom palette (#2C5745, #EBE3A7, #EB7D00, #FFCC4D, #FFFC8C).
  * @functions SlashHandler - Class with isSlashCommand, handleSlashCommand, promptInteractiveMenu, getHelpText methods
  */
 
@@ -15,8 +15,10 @@ import { nineRouterClient } from '../router/ninerouter-client.js';
 import { configManager } from '../config/config-manager.js';
 import { mcpStatusManager } from '../utils/mcp-status.js';
 import { experienceStore } from '../database/experience-store.js';
+import { sessionStore } from '../database/session-store.js';
 import { executeUpdateCommand } from './update.js';
 import { PALETTE, tuiTheme } from '../ui/tui-theme.js';
+import { tuiPager } from '../ui/tui-pager.js';
 
 export interface SlashMenuItem {
   name: string;
@@ -25,22 +27,35 @@ export interface SlashMenuItem {
 }
 
 export const SLASH_MENU_ITEMS: SlashMenuItem[] = [
+  { name: '📖 /view          - Buka respon terakhir di Scroll Pager interaktif (panah keyboard)', value: '/view', description: 'Open last response in scroll pager' },
+  { name: '📜 /history       - Buka riwayat percakapan sesi penuh di Scroll Pager', value: '/history', description: 'Open full session history in scroll pager' },
   { name: '⚙️ /config       - Kelola konfigurasi 9router (URL, API Key, Combo)', value: '/config', description: 'Configure 9router settings' },
   { name: '⚡ /new          - Inisialisasi sesi percakapan/kerja baru di SQLite', value: '/new', description: 'Start new session' },
   { name: '📁 /init         - Inisialisasi 4 file manifest wajib (workflow, footprint, agent, prompt)', value: '/init', description: 'Init manifests' },
   { name: '💾 /sessions     - Tampilkan & pilih sesi tersimpan di SQLite', value: '/sessions', description: 'Manage sessions' },
   { name: '🧹 /remove-slop   - Scan & bersihkan AI Slop (file temp & komentar redundan)', value: '/remove-slop', description: 'Clean AI slop' },
-  { name: '🤖 /agents       - Tampilkan & pilih persona Swarm Agent persona', value: '/agents', description: 'Switch agent' },
+  { name: '🤖 /agents       - Tampilkan & pilih persona Swarm Agent', value: '/agents', description: 'Switch agent' },
   { name: '🧠 /models       - Tampilkan & pilih 9router combo model', value: '/models', description: 'Switch model' },
   { name: '🔌 /mcp          - Tampilkan status active MCPs & Swarm tools', value: '/mcp', description: 'Check MCP status' },
   { name: '📚 /experience   - Cari & tampilkan riwayat solusi di Hermes Experience Bank', value: '/experience', description: 'View experience memory' },
-  { name: '✨ /clear        - Bersihkan layar TUI (Agentic Realm Screen Reset)', value: '/clear', description: 'Clear screen' },
+  { name: '✨ /clear        - Bersihkan layar TUI & gambar ulang Header Banner', value: '/clear', description: 'Clear screen and render header' },
+  { name: '🏷️ /header       - Tampilkan kembali Banner & Status HUD Agentyx', value: '/header', description: 'Show Header Banner' },
   { name: '🚀 /update       - Periksa & perbarui Agentyx ke versi terbaru (in-place)', value: '/update', description: 'Update Agentyx in-place' },
   { name: '❓ /help         - Tampilkan bantuan dan daftar perintah', value: '/help', description: 'Display help' },
   { name: '🚪 /exit         - Keluar dari Agentyx CLI secara aman', value: '/exit', description: 'Exit CLI' }
 ];
 
 export class SlashHandler {
+  private lastResponse: string = '';
+
+  public setLastResponse(content: string): void {
+    this.lastResponse = content;
+  }
+
+  public getLastResponse(): string {
+    return this.lastResponse;
+  }
+
   public isSlashCommand(input: string): boolean {
     return input.trim().startsWith('/');
   }
@@ -92,6 +107,61 @@ export class SlashHandler {
     const args = parts.slice(1);
 
     switch (command) {
+      case '/view':
+      case '/scroll':
+      case '/read': {
+        let contentToView = this.lastResponse;
+        if (!contentToView) {
+          const cfg = configManager.getConfig();
+          const currentSessionId = cfg.ACTIVE_SESSION_ID;
+          if (currentSessionId) {
+            const recent = sessionStore.getRecentMessages(currentSessionId, 5);
+            const lastAssistant = [...recent].reverse().find(m => m.role === 'assistant');
+            if (lastAssistant) {
+              contentToView = lastAssistant.content;
+            }
+          }
+        }
+
+        if (!contentToView) {
+          return chalk.bold.hex(PALETTE.warmAmber)('⚠️ Belum ada respon terbaru untuk ditampilkan di Scroll Pager.');
+        }
+
+        await tuiPager.open(contentToView, {
+          title: 'Agentyx Last AI Response Pager'
+        });
+        return '';
+      }
+
+      case '/history':
+      case '/logs': {
+        const cfg = configManager.getConfig();
+        const currentSessionId = cfg.ACTIVE_SESSION_ID;
+        if (!currentSessionId) {
+          return chalk.bold.hex(PALETTE.warmAmber)('⚠️ Tidak ada sesi aktif yang ditemukan.');
+        }
+
+        const messages = sessionStore.getSessionMessages(currentSessionId);
+        if (messages.length === 0) {
+          return chalk.bold.hex(PALETTE.warmAmber)('⚠️ Belum ada riwayat pesan dalam sesi ini.');
+        }
+
+        let historyDoc = `# Sesi Percakapan: ${currentSessionId.slice(0, 8)}\n\n`;
+        messages.forEach((m, idx) => {
+          const roleTitle = m.role === 'user' ? '👤 USER' : m.role === 'assistant' ? '🤖 ASSISTANT' : `⚡ ${m.role.toUpperCase()}`;
+          historyDoc += `## [${idx + 1}] ${roleTitle} (${m.timestamp})\n`;
+          if (m.thought) {
+            historyDoc += `> Thought: ${m.thought}\n\n`;
+          }
+          historyDoc += `${m.content}\n\n---\n\n`;
+        });
+
+        await tuiPager.open(historyDoc, {
+          title: `Full Session History [${currentSessionId.slice(0, 8)}]`
+        });
+        return '';
+      }
+
       case '/config': {
         if (args.length >= 2) {
           const subKey = args[0].toLowerCase();
@@ -234,6 +304,13 @@ export class SlashHandler {
         return out;
       }
 
+      case '/header':
+      case '/banner':
+      case '/hud': {
+        tuiTheme.renderHeaderBanner();
+        return '';
+      }
+
       case '/clear':
       case '/cls': {
         tuiTheme.renderHeaderBanner();
@@ -266,6 +343,8 @@ export class SlashHandler {
     return chalk.bold.hex(PALETTE.forestDark)('\n┌────────────────────────────────────────────────────────────────────────┐\n') +
       chalk.bold.hex(PALETTE.forestDark)('│ ') + chalk.bold.bgHex(PALETTE.forestDark).hex(PALETTE.lemonLight)(' 📌 AGENTYX INTERACTIVE SLASH COMMANDS REFERENCE ') + chalk.bold.hex(PALETTE.forestDark)('                    │\n') +
       chalk.bold.hex(PALETTE.forestDark)('└────────────────────────────────────────────────────────────────────────┘\n\n') +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/view')} (atau '${chalk.bold.hex(PALETTE.goldYellow)('/scroll')}') - Buka respon terakhir di Scroll Pager interaktif (panah keyboard)\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/history')}             - Buka riwayat percakapan sesi penuh di Scroll Pager\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/menu')} (atau '${chalk.bold.hex(PALETTE.goldYellow)('/')}')  - Tampilkan interactive select menu (panah keyboard)\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/config [url|key|model]')} - Kelola URL, API Key, atau Combo Model 9router\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/new [title]')}         - Inisialisasi sesi percakapan/kerja baru di SQLite\n` +
@@ -276,6 +355,7 @@ export class SlashHandler {
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/models [combo]')}      - Tampilkan atau pilih combo/model 9router\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/mcp')} (atau '${chalk.bold.hex(PALETTE.goldYellow)('/tools')}') - Tampilkan status active MCPs & Swarm tools\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/experience [query]')} - Cari atau tampilkan riwayat solusi di Hermes Experience Bank\n` +
+      `  ${chalk.bold.hex(PALETTE.goldYellow)('/header')} (atau '${chalk.bold.hex(PALETTE.goldYellow)('/hud')}') - Tampilkan kembali Banner & Status HUD Agentyx\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/clear')} (atau '${chalk.bold.hex(PALETTE.goldYellow)('/cls')}') - Bersihkan layar TUI & reset realm view\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/update [force]')}      - Periksa & perbarui Agentyx ke versi terbaru secara in-place\n` +
       `  ${chalk.bold.hex(PALETTE.goldYellow)('/help')}                - Tampilkan referensi bantuan ini\n` +
