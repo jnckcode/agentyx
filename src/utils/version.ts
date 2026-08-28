@@ -24,7 +24,7 @@ export function getAppVersion(): string {
   } catch {
     // Fallback
   }
-  return '3.5.0';
+  return '3.6.0';
 }
 
 export const APP_VERSION = getAppVersion();

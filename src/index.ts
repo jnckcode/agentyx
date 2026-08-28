@@ -1,6 +1,6 @@
 /**
  * @file index.ts
- * @description Main entry point for Agentyx AI Agentic CLI Platform (Version 3.5.0)
+ * @description Main entry point for Agentyx AI Agentic CLI Platform (Version 3.6.0)
  * @purpose Bootstraps Full-Screen TUI Engine with Pinned Header, Scrollable Middle Viewport (Mouse Wheel & PgUp/PgDn), Persistent Bottom Input HUD, Multi-Turn Agent Loop, and SQLite Second Brain.
  * @functions startInteractiveRepl, processInput, main - Main CLI execution loop.
  */
